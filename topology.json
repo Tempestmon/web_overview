@@ -1,0 +1,35 @@
+{
+  "nodes": [
+    {"id": "users", "label": "Пользователи", "kind": "actor", "pos": {"x": 90, "y": 350}, "faults": []},
+    {"id": "traefik", "label": "Traefik LB", "kind": "lb", "container": "traefik", "pos": {"x": 280, "y": 350},
+     "grafana": "d/overview", "faults": []},
+    {"id": "gateway-1", "label": "Gateway #1", "kind": "service", "container": "gateway-1", "pos": {"x": 480, "y": 240},
+     "grafana": "d/service?var-service=gateway-1", "faults": ["stop", "pause"]},
+    {"id": "gateway-2", "label": "Gateway #2", "kind": "service", "container": "gateway-2", "pos": {"x": 480, "y": 460},
+     "grafana": "d/service?var-service=gateway-2", "faults": ["stop", "pause"]},
+    {"id": "order-svc", "label": "Order Service", "kind": "service", "container": "order-svc", "pos": {"x": 700, "y": 350},
+     "grafana": "d/service?var-service=order-svc", "faults": ["stop", "pause"]},
+    {"id": "redis", "label": "Redis", "kind": "cache", "container": "redis", "pos": {"x": 700, "y": 120},
+     "grafana": "d/overview", "faults": ["stop", "pause"]},
+    {"id": "postgres", "label": "PostgreSQL", "kind": "db", "container": "postgres", "pos": {"x": 700, "y": 580},
+     "grafana": "d/overview", "faults": ["stop", "pause"]},
+    {"id": "kafka", "label": "Kafka", "kind": "broker", "container": "kafka", "pos": {"x": 920, "y": 350},
+     "grafana": "d/kafka", "faults": ["stop", "pause"]},
+    {"id": "kitchen-svc", "label": "Kitchen", "kind": "service", "container": "kitchen-svc", "pos": {"x": 1140, "y": 350},
+     "grafana": "d/service?var-service=kitchen-svc", "faults": ["stop", "pause"]}
+  ],
+  "edges": [
+    {"from": "users", "to": "traefik", "proto": "http", "dep": "hard",
+     "query": "sum(rate(traefik_service_requests_total{service=~\"gateway.*\"}[20s]))"},
+    {"from": "traefik", "to": "gateway-1", "proto": "http", "dep": "hard"},
+    {"from": "traefik", "to": "gateway-2", "proto": "http", "dep": "hard"},
+    {"from": "gateway-1", "to": "order-svc", "proto": "grpc", "dep": "hard"},
+    {"from": "gateway-2", "to": "order-svc", "proto": "grpc", "dep": "hard"},
+    {"from": "order-svc", "to": "postgres", "proto": "sql", "dep": "hard"},
+    {"from": "order-svc", "to": "redis", "proto": "redis", "dep": "soft"},
+    {"from": "order-svc", "to": "kafka", "proto": "kafka", "dep": "hard"},
+    {"from": "kafka", "to": "kitchen-svc", "proto": "kafka", "dep": "hard"},
+    {"from": "kitchen-svc", "to": "kafka", "proto": "kafka", "dep": "hard"},
+    {"from": "kafka", "to": "order-svc", "proto": "kafka", "dep": "hard"}
+  ]
+}
