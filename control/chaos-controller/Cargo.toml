@@ -21,3 +21,5 @@ tracing.workspace = true
 metrics.workspace = true
 rust-embed.workspace = true
 mime_guess.workspace = true
+async-stream.workspace = true
+async-trait = "0.1"
