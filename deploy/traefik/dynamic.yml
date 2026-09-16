@@ -1,0 +1,36 @@
+http:
+  routers:
+    shop:
+      rule: "PathPrefix(`/api/shop`)"
+      entryPoints: [web]
+      service: gateway
+      priority: 20
+    grafana:
+      rule: "PathPrefix(`/grafana`)"
+      entryPoints: [web]
+      service: grafana
+      priority: 20
+    panel:
+      rule: "PathPrefix(`/`)"
+      entryPoints: [web]
+      service: panel
+      priority: 1
+
+  services:
+    gateway:
+      loadBalancer:
+        servers:
+          - url: http://gateway-1:8080
+          - url: http://gateway-2:8080
+        healthCheck:
+          path: /healthz
+          interval: 2s
+          timeout: 1s
+    grafana:
+      loadBalancer:
+        servers:
+          - url: http://grafana:3000
+    panel:
+      loadBalancer:
+        servers:
+          - url: http://chaos-controller:8080

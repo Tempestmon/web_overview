@@ -1,0 +1,7 @@
+services:
+  traefik:
+    ports:
+      - "8080:80"
+  prometheus:
+    ports:
+      - "9090:9090"

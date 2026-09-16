@@ -1,0 +1,21 @@
+entryPoints:
+  web:
+    address: ":80"
+  metrics:
+    address: ":8082"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addServicesLabels: true
+    addEntryPointsLabels: true
+
+ping: {}
+
+log:
+  level: INFO
