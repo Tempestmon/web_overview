@@ -1,0 +1,18 @@
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+
+[dev-dependencies]
+metrics-util.workspace = true

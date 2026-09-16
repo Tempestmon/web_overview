@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package order;
+
+service OrderService {
+  rpc GetMenu(GetMenuRequest) returns (Menu);
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+  rpc GetOrder(GetOrderRequest) returns (Order);
+}
+
+message GetMenuRequest {}
+
+message MenuItem {
+  int64 id = 1;
+  string name = 2;
+  int64 price_cents = 3;
+}
+
+message Menu {
+  repeated MenuItem items = 1;
+  bool from_cache = 2;
+}
+
+message OrderLine {
+  int64 item_id = 1;
+  int32 qty = 2;
+}
+
+message CreateOrderRequest {
+  repeated OrderLine lines = 1;
+  string client_id = 2;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message Order {
+  string id = 1;
+  string status = 2;
+  int64 total_cents = 3;
+  repeated OrderLine lines = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}

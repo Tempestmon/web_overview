@@ -1,0 +1,22 @@
+[package]
+name = "order-svc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+common.workspace = true
+proto.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+axum.workspace = true
+sqlx.workspace = true
+redis.workspace = true
+rdkafka.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+metrics.workspace = true
