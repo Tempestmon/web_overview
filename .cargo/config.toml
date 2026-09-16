@@ -1,0 +1,5 @@
+[env]
+# librdkafka's CMakeLists declares an ancient minimum version that CMake 4
+# refuses to configure; this lets the bundled (cmake-build) librdkafka build
+# on hosts with a current CMake without patching the vendored sources.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

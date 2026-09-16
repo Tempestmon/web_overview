@@ -11,7 +11,7 @@ RUN npm run build
 
 FROM rust:1.98-trixie AS chef
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      librdkafka-dev pkg-config protobuf-compiler cmake build-essential \
+      pkg-config protobuf-compiler cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-chef --locked
 WORKDIR /app
@@ -31,7 +31,7 @@ RUN cargo build --release --workspace --bins \
           target/release/loadgen target/release/chaos-controller /out/
 
 FROM debian:trixie-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends librdkafka1 ca-certificates curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -u 10001 app
 COPY --from=builder /out/ /usr/local/bin/
