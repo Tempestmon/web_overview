@@ -50,13 +50,6 @@ impl Repo {
         }
     }
 
-    pub async fn ping(&self) -> bool {
-        self.edge
-            .observe(sqlx::query("SELECT 1").execute(&self.pool))
-            .await
-            .is_ok()
-    }
-
     pub async fn list_menu(&self) -> sqlx::Result<Vec<MenuRow>> {
         self.edge
             .observe(

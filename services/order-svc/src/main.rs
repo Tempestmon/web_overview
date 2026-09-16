@@ -5,7 +5,6 @@ mod repo;
 mod status;
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use common::config;
@@ -39,11 +38,9 @@ async fn main() -> anyhow::Result<()> {
     let grpc_addr: SocketAddr = config::or_default("GRPC_ADDR", "0.0.0.0:50051").parse()?;
     let ops_addr: SocketAddr = config::or_default("OPS_ADDR", "0.0.0.0:8081").parse()?;
 
-    let health_repo = repo.clone();
-    let health: common::HealthFn = Arc::new(move || {
-        let repo = health_repo.clone();
-        Box::pin(async move { repo.ping().await })
-    });
+    // Liveness only: a Postgres outage must show up as "degraded" via the
+    // dependency graph, not as a "broken" order service.
+    let health = common::always_healthy();
 
     let grpc = tonic::transport::Server::builder()
         .add_service(OrderServiceServer::new(OrderSvc {
