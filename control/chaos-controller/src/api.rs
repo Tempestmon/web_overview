@@ -176,13 +176,6 @@ async fn start_fault(
     metrics::counter!("chaos_faults_total", "node" => fault.node.clone()).increment(1);
 
     let ttl = fault.ends_at.saturating_duration_since(now);
-    let heal_state = state.clone();
-    let id = fault.id;
-    tokio::spawn(async move {
-        tokio::time::sleep(ttl).await;
-        heal(&heal_state, id).await;
-    });
-
     Ok((
         StatusCode::CREATED,
         Json(FaultCreated {
@@ -254,10 +247,15 @@ fn is_admin(state: &AppState, headers: &HeaderMap) -> bool {
     }
 }
 
-/// Builds a snapshot from the latest observations once a second and
-/// publishes it to every SSE subscriber.
+/// Once a second: heal whatever expired, then build and publish a snapshot.
+/// Expiry is swept here rather than by per-fault timers so there is exactly
+/// one code path that ends a fault.
 pub async fn run_snapshotter(state: AppState, tx: watch::Sender<Arc<Snapshot>>) {
     loop {
+        let expired = state.book.lock().await.expired(Instant::now());
+        for fault in expired {
+            heal(&state, fault.id).await;
+        }
         let snapshot = build_snapshot(&state).await;
         let _ = tx.send(Arc::new(snapshot));
         tokio::time::sleep(Duration::from_secs(1)).await;
