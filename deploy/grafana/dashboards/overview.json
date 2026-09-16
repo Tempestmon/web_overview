@@ -37,7 +37,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "sum(loadgen_active_users) + sum(gateway_sse_connections)",
+     "expr": "sum(loadgen_active_users) + (sum(gateway_sse_connections) or vector(0))",
      "legendFormat": "online",
      "refId": "A"
     }

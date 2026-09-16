@@ -16,6 +16,9 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = config::or_default("HTTP_ADDR", "0.0.0.0:8080").parse()?;
     let orders = GrpcOrderClient::connect_lazy(&config::required("ORDER_SVC_URL"), &service_id)?;
 
+    // Publish the gauge at zero so dashboards see it before the first viewer.
+    metrics::gauge!("gateway_sse_connections").set(0.0);
+
     let state = AppState {
         orders: Arc::new(orders),
         inbound: Edge::new("traefik", service_id, "http"),

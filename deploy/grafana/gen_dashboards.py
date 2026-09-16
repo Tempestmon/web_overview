@@ -46,7 +46,7 @@ def dashboard(uid, title, panels, templating=None):
 
 
 overview = dashboard("overview", "Chaos Panel · Overview", [
-    panel(1, "People online", [target("sum(loadgen_active_users) + sum(gateway_sse_connections)", "online")], 0, 0, 6, 4, "stat"),
+    panel(1, "People online", [target("sum(loadgen_active_users) + (sum(gateway_sse_connections) or vector(0))", "online")], 0, 0, 6, 4, "stat"),
     panel(2, "Orders / min", [target("sum(increase(orders_created_total[1m]))", "orders")], 6, 0, 6, 4, "stat"),
     panel(3, "Kitchen backlog (Kafka lag)", [target("sum(kafka_consumergroup_lag)", "lag")], 12, 0, 6, 4, "stat"),
     panel(4, "Orders in kitchen", [target("sum(kitchen_orders_in_progress)", "cooking")], 18, 0, 6, 4, "stat"),

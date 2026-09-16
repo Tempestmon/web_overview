@@ -114,9 +114,10 @@ impl PromClient {
         }
         Flow {
             edges,
-            people_online: self
-                .scalar("sum(loadgen_active_users) + sum(gateway_sse_connections)")
-                .await,
+            // Two queries on purpose: PromQL arithmetic with an absent series
+            // yields nothing, and a gauge nobody touched yet is absent.
+            people_online: self.scalar("sum(loadgen_active_users)").await
+                + self.scalar("sum(gateway_sse_connections)").await,
             orders_per_min: self.scalar("sum(increase(orders_created_total[1m]))").await,
             kafka_lag: self.scalar("sum(kafka_consumergroup_lag)").await,
         }
