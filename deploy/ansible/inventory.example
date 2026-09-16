@@ -1,0 +1,2 @@
+[chaos]
+chaos.example.com ansible_user=root

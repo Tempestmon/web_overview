@@ -1,0 +1,61 @@
+# Deploys the stack to one Docker host.
+#   cp deploy/ansible/inventory.example deploy/ansible/inventory   # edit host
+#   cp .env.example .env                                            # edit secrets, DOMAIN, ACME_EMAIL
+#   ansible-playbook -i deploy/ansible/inventory deploy/ansible/site.yml
+- name: Chaos panel host
+  hosts: chaos
+  become: true
+  vars:
+    app_dir: /opt/chaos-panel
+    repo_root: "{{ playbook_dir }}/../.."
+  tasks:
+    - name: Install Docker CE from the official repository
+      block:
+        - apt:
+            name: [ca-certificates, curl, gnupg, rsync, python3]
+            update_cache: true
+        - shell: |
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg -o /etc/apt/keyrings/docker.asc
+            chmod a+r /etc/apt/keyrings/docker.asc
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable" > /etc/apt/sources.list.d/docker.list
+          args:
+            creates: /etc/apt/sources.list.d/docker.list
+        - apt:
+            name: [docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin]
+            update_cache: true
+        - service:
+            name: docker
+            state: started
+            enabled: true
+
+    - name: Sync repository
+      synchronize:
+        src: "{{ repo_root }}/"
+        dest: "{{ app_dir }}/"
+        delete: true
+        rsync_opts:
+          - "--exclude=target"
+          - "--exclude=web/node_modules"
+          - "--exclude=web/dist"
+          - "--exclude=.git"
+
+    - name: Install .env
+      copy:
+        src: "{{ repo_root }}/.env"
+        dest: "{{ app_dir }}/.env"
+        mode: "0600"
+
+    - name: Build and start the stack
+      command:
+        cmd: docker compose --project-directory . -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build --remove-orphans
+        chdir: "{{ app_dir }}"
+
+    - name: Wait for the panel
+      uri:
+        url: "https://{{ lookup('ini', 'DOMAIN type=properties file=' + repo_root + '/.env') }}/api/state"
+        status_code: 200
+      register: panel
+      retries: 30
+      delay: 5
+      until: panel.status == 200

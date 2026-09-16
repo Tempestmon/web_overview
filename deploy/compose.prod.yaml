@@ -1,0 +1,50 @@
+# Production overlay: Traefik terminates TLS with Let's Encrypt, everything
+# restarts on its own, nothing but 80/443 is published.
+services:
+  traefik:
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls.certresolver=le
+      - --entrypoints.metrics.address=:8082
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.tlschallenge=true
+      - --metrics.prometheus.entrypoint=metrics
+      - --metrics.prometheus.addServicesLabels=true
+      - --ping=true
+    volumes:
+      - ./deploy/traefik/dynamic.prod.yml:/etc/traefik/dynamic.yml:ro
+      - letsencrypt:/letsencrypt
+  gateway-1: { restart: always }
+  gateway-2: { restart: always }
+  order-svc: { restart: always }
+  kitchen-svc: { restart: always }
+  postgres:
+    restart: always
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  redis: { restart: always }
+  kafka:
+    restart: always
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+  docker-socket-proxy: { restart: always }
+  chaos-controller: { restart: always }
+  loadgen: { restart: always }
+  kafka-exporter: { restart: always }
+  prometheus: { restart: always }
+  grafana: { restart: always }
+
+volumes:
+  letsencrypt:
+  postgres-data:
+  kafka-data:
