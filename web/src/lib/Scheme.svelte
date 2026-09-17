@@ -60,7 +60,8 @@
   function edgeClass(from: string, to: string) {
     const r = edgeRate.get(`${from}->${to}`);
     if (!r) return 'idle';
-    if (r.error_rps > 0) return 'erroring';
+    // A stray 5xx per minute is noise; paint red only when errors are a real share.
+    if (r.rps > 0 && r.error_rps / r.rps > 0.05) return 'erroring';
     return r.rps > 0 ? 'live' : 'idle';
   }
 </script>

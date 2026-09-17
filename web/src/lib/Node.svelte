@@ -19,7 +19,7 @@
   let menuOpen = $state(false);
 
   const kindLabel: Record<string, string> = {
-    actor: 'люди', lb: 'балансировщик', service: 'сервис', db: 'база данных', cache: 'кеш', broker: 'брокер',
+    actor: 'люди', lb: 'балансер', service: 'сервис', db: 'БД', cache: 'кеш', broker: 'брокер',
   };
   const stateLabel: Record<NodeState, string> = {
     healthy: 'работает', broken: 'сломан', degraded: 'деградация', recovering: 'поднимается',

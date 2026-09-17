@@ -65,7 +65,9 @@ async fn main() -> anyhow::Result<()> {
             .set("group.id", CONSUMER_GROUP)
             .set("enable.auto.commit", "false")
             .set("auto.offset.reset", "earliest")
-            .set("session.timeout.ms", "6000")
+            // Generous on purpose: small hosts stall for seconds under load, and a
+            // spurious rebalance looks exactly like the fault we are trying to show.
+            .set("session.timeout.ms", "30000")
             .set("max.poll.interval.ms", "300000")
             .create()?,
     );
