@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 pub enum FaultKind {
     Stop,
     Pause,
+    Latency,
+    Loss,
+    #[serde(rename = "app-error")]
+    AppError,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -56,6 +60,9 @@ pub struct Node {
     pub grafana: Option<String>,
     #[serde(default)]
     pub faults: Vec<FaultKind>,
+    /// Port of the service's ops endpoint, needed for application-level faults.
+    #[serde(default)]
+    pub ops_port: Option<u16>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -91,6 +98,8 @@ pub enum TopologyError {
     },
     #[error("node {0:?} has faults but no container")]
     FaultWithoutContainer(String),
+    #[error("node {0:?} offers app-error but has no ops_port")]
+    AppErrorWithoutOpsPort(String),
 }
 
 impl Topology {
@@ -108,6 +117,9 @@ impl Topology {
             }
             if !node.faults.is_empty() && node.container.is_none() {
                 return Err(TopologyError::FaultWithoutContainer(node.id.clone()));
+            }
+            if node.faults.contains(&FaultKind::AppError) && node.ops_port.is_none() {
+                return Err(TopologyError::AppErrorWithoutOpsPort(node.id.clone()));
             }
         }
         for edge in &self.edges {
@@ -168,6 +180,29 @@ mod tests {
             t.validate(),
             Err(TopologyError::UnknownNode { .. })
         ));
+    }
+
+    #[test]
+    fn app_error_requires_ops_port() {
+        let mut t = repo_topology();
+        let node = t.nodes.iter_mut().find(|n| n.id == "kitchen-svc").unwrap();
+        node.faults.push(FaultKind::AppError);
+        node.ops_port = None;
+        assert!(matches!(
+            t.validate(),
+            Err(TopologyError::AppErrorWithoutOpsPort(_))
+        ));
+    }
+
+    #[test]
+    fn fault_kind_serde_names() {
+        let kinds: Vec<FaultKind> =
+            serde_json::from_str(r#"["stop","pause","latency","loss","app-error"]"#).unwrap();
+        assert_eq!(kinds.len(), 5);
+        assert_eq!(
+            serde_json::to_string(&FaultKind::AppError).unwrap(),
+            "\"app-error\""
+        );
     }
 
     #[test]

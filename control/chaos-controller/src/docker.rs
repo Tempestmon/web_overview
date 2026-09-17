@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 use bollard::Docker;
+use bollard::exec::{CreateExecOptions, StartExecResults};
 use bollard::models::{ContainerStateStatusEnum, HealthStatusEnum};
 use bollard::query_parameters::StopContainerOptions;
+use futures::StreamExt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerStatus {
@@ -26,6 +28,9 @@ pub trait ContainerControl: Send + Sync {
     async fn start(&self, name: &str) -> anyhow::Result<()>;
     async fn pause(&self, name: &str) -> anyhow::Result<()>;
     async fn unpause(&self, name: &str) -> anyhow::Result<()>;
+    /// Runs a command inside the container as root and fails on a non-zero
+    /// exit, returning the command's output as the error text.
+    async fn exec(&self, name: &str, cmd: &[&str]) -> anyhow::Result<()>;
 }
 
 pub struct BollardControl {
@@ -87,6 +92,35 @@ impl ContainerControl for BollardControl {
     async fn unpause(&self, name: &str) -> anyhow::Result<()> {
         self.docker.unpause_container(name).await?;
         Ok(())
+    }
+
+    async fn exec(&self, name: &str, cmd: &[&str]) -> anyhow::Result<()> {
+        let options = CreateExecOptions {
+            cmd: Some(cmd.iter().map(|s| s.to_string()).collect()),
+            // Containers run as an unprivileged user; tc needs the container's
+            // NET_ADMIN, which only root inside it can exercise.
+            user: Some("root".to_string()),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..Default::default()
+        };
+        let created = self.docker.create_exec(name, options).await?;
+        let mut output = String::new();
+        if let StartExecResults::Attached {
+            output: mut stream, ..
+        } = self.docker.start_exec(&created.id, None).await?
+        {
+            while let Some(chunk) = stream.next().await {
+                output.push_str(&chunk?.to_string());
+            }
+        }
+        let inspected = self.docker.inspect_exec(&created.id).await?;
+        match inspected.exit_code {
+            Some(0) | None => Ok(()),
+            Some(code) => {
+                anyhow::bail!("`{}` exited with {code}: {}", cmd.join(" "), output.trim())
+            }
+        }
     }
 }
 

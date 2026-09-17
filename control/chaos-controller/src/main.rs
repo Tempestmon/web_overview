@@ -1,4 +1,5 @@
 mod api;
+mod apply;
 mod docker;
 mod faults;
 mod flow;
@@ -59,6 +60,9 @@ async fn main() -> anyhow::Result<()> {
         flow: flow.clone(),
         snapshot: rx,
         admin_token: std::env::var("ADMIN_TOKEN").ok().filter(|t| !t.is_empty()),
+        http: reqwest::Client::builder()
+            .timeout(Duration::from_secs(3))
+            .build()?,
     };
 
     tokio::spawn(health::run_monitor(topology.clone(), docker, observed));

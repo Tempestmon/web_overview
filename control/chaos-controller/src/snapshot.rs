@@ -15,6 +15,8 @@ pub struct Snapshot {
     pub people_online: f64,
     pub orders_per_min: f64,
     pub kafka_lag: f64,
+    /// Average accepted→delivered time over the last 5 minutes, from ClickHouse.
+    pub lead_time_s: f64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -30,6 +32,10 @@ pub struct EdgeSnapshot {
     pub to: String,
     pub rps: f64,
     pub error_rps: f64,
+    pub p95_ms: f64,
+    /// Circuit breaker guarding this edge, if the caller has one:
+    /// "closed", "open" or "half-open".
+    pub breaker: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

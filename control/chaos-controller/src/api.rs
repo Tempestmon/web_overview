@@ -12,9 +12,10 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, watch};
 
+use crate::apply;
 use crate::docker::ContainerControl;
 use crate::faults::{Fault, FaultBook, Refusal};
-use crate::flow::SharedFlow;
+use crate::flow::{SharedFlow, failing_edges};
 use crate::health::SharedObserved;
 use crate::snapshot::{ActiveFault, EdgeSnapshot, NodeSnapshot, Snapshot};
 use crate::state::derive_states;
@@ -29,6 +30,7 @@ pub struct AppState {
     pub flow: SharedFlow,
     pub snapshot: watch::Receiver<Arc<Snapshot>>,
     pub admin_token: Option<String>,
+    pub http: reqwest::Client,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -143,7 +145,6 @@ async fn start_fault(
     if !node.faults.contains(&body.kind) {
         return Err(ApiError::UnsupportedFault);
     }
-    let container = node.container.clone().ok_or(ApiError::UnsupportedFault)?;
     let owner = client_ip(&headers);
     let admin = is_admin(&state, &headers);
     let now = Instant::now();
@@ -172,12 +173,9 @@ async fn start_fault(
     let apply_state = state.clone();
     let apply_id = fault.id;
     let apply_kind = body.kind;
+    let apply_node = node.clone();
     tokio::spawn(async move {
-        let applied = match apply_kind {
-            FaultKind::Stop => apply_state.docker.stop(&container).await,
-            FaultKind::Pause => apply_state.docker.pause(&container).await,
-        };
-        if let Err(err) = applied {
+        if let Err(err) = apply::apply(&apply_state, &apply_node, apply_kind).await {
             tracing::error!(id = apply_id, %err, "fault apply failed");
             apply_state
                 .book
@@ -222,16 +220,11 @@ async fn heal(state: &AppState, id: u64) {
     let Some(fault) = state.book.lock().await.finish(id, Instant::now()) else {
         return;
     };
-    let container = state
-        .topology
-        .node(&fault.node)
-        .and_then(|n| n.container.clone())
-        .unwrap_or_default();
-    let result = match fault.kind {
-        FaultKind::Stop => state.docker.start(&container).await,
-        FaultKind::Pause => state.docker.unpause(&container).await,
+    let Some(node) = state.topology.node(&fault.node) else {
+        tracing::error!(id, node = %fault.node, "fault refers to unknown node");
+        return;
     };
-    match result {
+    match apply::heal(state, node, fault.kind).await {
         Ok(()) => tracing::info!(id, node = %fault.node, "fault healed"),
         Err(err) => {
             tracing::error!(id, node = %fault.node, %err, "heal failed; reconcile loop will retry")
@@ -289,7 +282,8 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
     };
     let mut broken = observed.broken.clone();
     broken.extend(faults.iter().map(|f| f.node.clone()));
-    let states = derive_states(&state.topology, &broken, &observed.recovering);
+    let failing = failing_edges(&flow);
+    let states = derive_states(&state.topology, &broken, &observed.recovering, &failing);
 
     Snapshot {
         ts_ms: SystemTime::now()
@@ -321,6 +315,8 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
                     to: e.to.clone(),
                     rps: rate.rps,
                     error_rps: rate.error_rps,
+                    p95_ms: rate.p95_s * 1000.0,
+                    breaker: flow.breakers.get(&e.to).cloned(),
                 }
             })
             .collect(),
@@ -329,6 +325,7 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
         people_online: flow.people_online,
         orders_per_min: flow.orders_per_min,
         kafka_lag: flow.kafka_lag,
+        lead_time_s: flow.lead_time_s,
     }
 }
 
