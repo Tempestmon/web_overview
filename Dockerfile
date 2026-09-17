@@ -24,10 +24,11 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --workspace --recipe-path recipe.json
 COPY . .
 COPY --from=web /web/dist ./web/dist
+# Every workspace binary lands in the image; adding a service means adding
+# a crate, not editing this file.
 RUN cargo build --release --workspace --bins \
     && mkdir -p /out \
-    && cp target/release/gateway target/release/order-svc target/release/kitchen-svc \
-          target/release/loadgen target/release/chaos-controller /out/
+    && find target/release -maxdepth 1 -type f -perm -u+x ! -name '*.d' -exec cp {} /out/ \;
 
 FROM debian:trixie-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl iproute2 \
