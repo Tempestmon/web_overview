@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # One image, every binary: the services share 95% of their dependency
 # graph, so building them together is far cheaper than five images.
 

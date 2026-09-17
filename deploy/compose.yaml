@@ -77,6 +77,11 @@ services:
       SERVICE_ID: kitchen-svc
       KAFKA_BROKERS: kafka:9092
       KAFKA_PARTITIONS: 12
+      # Kitchen throughput ceiling is partitions / avg_cook. Keep it above the
+      # steady-state order rate so the backlog stays near zero until a fault,
+      # then visibly builds while a component is down.
+      COOK_MIN_MS: 3000
+      COOK_MAX_MS: 8000
     depends_on:
       kafka: { condition: service_healthy }
     healthcheck:
