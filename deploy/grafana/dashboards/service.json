@@ -151,6 +151,44 @@
    }
   },
   {
+   "id": 5,
+   "type": "timeseries",
+   "title": "p95 latency of incoming calls",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le, src) (rate(edge_request_duration_seconds_bucket{dst=\"$service\"}[1m])))",
+     "legendFormat": "{{src}} →",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   }
+  },
+  {
    "id": 4,
    "type": "timeseries",
    "title": "Error ratio of outgoing calls",

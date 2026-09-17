@@ -30,7 +30,7 @@ RUN cargo build --release --workspace --bins \
           target/release/loadgen target/release/chaos-controller /out/
 
 FROM debian:trixie-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl iproute2 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -u 10001 app
 COPY --from=builder /out/ /usr/local/bin/

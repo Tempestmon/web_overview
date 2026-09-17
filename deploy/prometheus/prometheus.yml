@@ -10,6 +10,9 @@ scrape_configs:
           - gateway-2:8080
           - order-svc:8081
           - kitchen-svc:8081
+          - payment-svc:8081
+          - courier-svc:8081
+          - analytics-svc:8081
           - loadgen:8081
           - chaos-controller:8080
   - job_name: traefik

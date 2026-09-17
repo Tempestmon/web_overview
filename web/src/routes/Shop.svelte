@@ -17,8 +17,17 @@
   let placing = $state(false);
   let es: EventSource | null = null;
 
-  const STEPS = ['accepted', 'cooking', 'cooked'];
-  const stepLabel: Record<string, string> = { accepted: 'Принят', cooking: 'Готовится', cooked: 'Готов, забирайте' };
+  const STEPS = ['accepted', 'paid', 'cooking', 'cooked', 'delivering', 'delivered'];
+  const stepLabel: Record<string, string> = {
+    accepted: 'Принят', paid: 'Оплачен', cooking: 'Готовится', cooked: 'Готов', delivering: 'Курьер в пути', delivered: 'Доставлен',
+  };
+  const stuckHint: Record<string, string> = {
+    accepted: 'Заказ принят, ждём подтверждения оплаты.',
+    paid: 'Оплачен и отправлен в очередь на кухню. Если кухня или брокер сломаны, он будет ждать здесь, пока их не починят.',
+    cooking: 'Кухня готовит. Если её остановить сейчас, заказ доготовится после восстановления.',
+    cooked: 'Готов, ждёт курьера. Сломанный курьер или брокер задержат его на этом шаге.',
+    delivering: 'Курьер везёт. Остановка курьера заморозит доставку до починки.',
+  };
 
   onMount(loadMenu);
 
@@ -75,7 +84,7 @@
       order = o;
       orderError = null;
       history = [...history, { status: o.status, at: new Date().toLocaleTimeString() }];
-      if (o.status === 'cooked') es?.close();
+      if (o.status === 'delivered') es?.close();
     });
     es.addEventListener('error', (e) => {
       const msg = (e as MessageEvent).data;
@@ -144,8 +153,8 @@
           </li>
         {/each}
       </ol>
-      {#if order.status === 'accepted'}
-        <div class="hint">Заказ принят и отправлен в очередь на кухню. Если кухня или брокер сломаны, он будет ждать здесь, пока их не починят.</div>
+      {#if stuckHint[order.status]}
+        <div class="hint">{stuckHint[order.status]}</div>
       {/if}
       {#if orderError}
         <div class="hint error">{orderError}</div>

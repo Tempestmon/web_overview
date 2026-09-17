@@ -24,8 +24,12 @@
   const stateLabel: Record<NodeState, string> = {
     healthy: 'работает', broken: 'сломан', degraded: 'деградация', recovering: 'поднимается',
   };
-  const faultLabel: Record<FaultKind, string> = { stop: 'Остановить', pause: 'Заморозить' };
-  const faultVerb: Record<FaultKind, string> = { stop: 'остановлен', pause: 'заморожен' };
+  const faultLabel: Record<FaultKind, string> = {
+    stop: 'Остановить', pause: 'Заморозить', latency: 'Замедлить сеть', loss: 'Терять пакеты', 'app-error': 'Инжектить ошибки',
+  };
+  const faultVerb: Record<FaultKind, string> = {
+    stop: 'остановлен', pause: 'заморожен', latency: 'тормозит', loss: 'теряет пакеты', 'app-error': 'ошибки 50%',
+  };
 
   function pick(kind: FaultKind) {
     menuOpen = false;

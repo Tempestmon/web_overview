@@ -28,6 +28,13 @@ services:
   gateway-2: { restart: always }
   order-svc: { restart: always }
   kitchen-svc: { restart: always }
+  payment-svc: { restart: always }
+  courier-svc: { restart: always }
+  analytics-svc: { restart: always }
+  clickhouse:
+    restart: always
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
   postgres:
     restart: always
     volumes:
@@ -45,6 +52,7 @@ services:
   grafana: { restart: always }
 
 volumes:
+  clickhouse-data:
   letsencrypt:
   postgres-data:
   kafka-data:

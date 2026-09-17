@@ -13,8 +13,8 @@
   }
   let { topology, snapshot, myFaults, onBreak, onHeal }: Props = $props();
 
-  const VIEW_W = 1280;
-  const VIEW_H = 700;
+  const VIEW_W = 1400;
+  const VIEW_H = 800;
 
   let canvas: HTMLCanvasElement;
   let field: ParticleField | null = null;
@@ -77,8 +77,14 @@
       {@const a = pos.get(e.from)}
       {@const b = pos.get(e.to)}
       {#if a && b}
-        <line class="edge {edgeClass(e.from, e.to)} {e.dep}" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+        {@const r = edgeRate.get(`${e.from}->${e.to}`)}
+        <line class="edge {edgeClass(e.from, e.to)} {e.dep}" x1={a.x} y1={a.y} x2={b.x} y2={b.y}>
+          <title>{e.from} → {e.to}: {r ? `${r.rps.toFixed(1)} rps, p95 ${Math.round(r.p95_ms)} мс, ошибок ${r.error_rps.toFixed(2)}/с` : 'нет данных'}</title>
+        </line>
         <text class="proto" x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 6} text-anchor="middle">{e.proto}</text>
+        {#if r?.breaker && r.breaker !== 'closed'}
+          <text class="breaker {r.breaker}" x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 + 14} text-anchor="middle">CB {r.breaker}</text>
+        {/if}
       {/if}
     {/each}
   </svg>
@@ -111,4 +117,6 @@
   .edge.erroring { stroke: var(--red); }
   .edge.soft { stroke-dasharray: 6 5; }
   .proto { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+  .breaker { font-family: var(--mono); font-size: 11px; font-weight: 700; fill: var(--red); }
+  .breaker.half-open { fill: #9a7b00; }
 </style>

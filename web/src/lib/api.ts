@@ -1,4 +1,4 @@
-export type FaultKind = 'stop' | 'pause';
+export type FaultKind = 'stop' | 'pause' | 'latency' | 'loss' | 'app-error';
 export type NodeKind = 'actor' | 'lb' | 'service' | 'db' | 'cache' | 'broker';
 export type NodeState = 'healthy' | 'broken' | 'degraded' | 'recovering';
 
@@ -10,6 +10,7 @@ export interface TopoNode {
   pos: { x: number; y: number };
   grafana?: string | null;
   faults: FaultKind[];
+  ops_port?: number | null;
 }
 
 export interface TopoEdge {
@@ -27,12 +28,13 @@ export interface Topology {
 export interface Snapshot {
   ts_ms: number;
   nodes: { id: string; state: NodeState; fault: FaultKind | null }[];
-  edges: { from: string; to: string; rps: number; error_rps: number }[];
+  edges: { from: string; to: string; rps: number; error_rps: number; p95_ms: number; breaker: string | null }[];
   faults: { id: number; node: string; kind: FaultKind; remaining_s: number }[];
   cooldown_s: number;
   people_online: number;
   orders_per_min: number;
   kafka_lag: number;
+  lead_time_s: number;
 }
 
 export interface ApiFailure {

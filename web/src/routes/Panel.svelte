@@ -32,7 +32,9 @@
   }
 
   const labelById = $derived(new Map((topology?.nodes ?? []).map((n) => [n.id, n.label])));
-  const faultVerb: Record<FaultKind, string> = { stop: 'остановлен', pause: 'заморожен' };
+  const faultVerb: Record<FaultKind, string> = {
+    stop: 'остановлен', pause: 'заморожен', latency: 'тормозит по сети', loss: 'теряет 30% пакетов', 'app-error': 'отвечает ошибками',
+  };
 </script>
 
 <header class="topbar">
@@ -40,6 +42,7 @@
   <div class="stat"><span>людей онлайн</span><b class="num">{Math.round(snapshot?.people_online ?? 0)}</b></div>
   <div class="stat"><span>заказов / мин</span><b class="num">{Math.round(snapshot?.orders_per_min ?? 0)}</b></div>
   <div class="stat"><span>очередь кухни</span><b class="num">{Math.round(snapshot?.kafka_lag ?? 0)}</b></div>
+  <div class="stat"><span>время заказа</span><b class="num">{snapshot?.lead_time_s ? Math.round(snapshot.lead_time_s) + ' с' : '—'}</b></div>
   <div class="stat"><span>контроллер</span><b>{online ? 'online' : 'offline'}</b></div>
   <nav style="margin-left:auto">
     <a href="/order" onclick={(e) => { e.preventDefault(); navigate('/order'); }}>Заказать еду →</a>
@@ -56,7 +59,7 @@
       </span>
       {#if myFaults.has(f.id)}<button onclick={() => onHeal(f.id)}>Починить сейчас</button>{/if}
     {/each}
-    <span style="margin-left:auto">жёлтым помечены зависимые компоненты</span>
+    <span style="margin-left:auto">жёлтым помечены зависимые компоненты, в том числе по живым метрикам</span>
   </div>
 {:else if snapshot && snapshot.cooldown_s > 0}
   <div class="banner gray">Система восстанавливается, следующий сбой через <span class="num">{Math.ceil(snapshot.cooldown_s)} с</span></div>
