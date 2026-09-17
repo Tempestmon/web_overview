@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::select! {
         r = grpc => r?,
-        r = common::serve_ops(ops_addr, metrics, health, axum::Router::new()) => r?,
+        r = common::serve_ops(ops_addr, metrics, health, common::FaultFlags::new(), axum::Router::new()) => r?,
     }
     Ok(())
 }

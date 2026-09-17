@@ -66,5 +66,12 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(api::run_snapshotter(state.clone(), tx));
 
     let addr: SocketAddr = config::or_default("HTTP_ADDR", "0.0.0.0:8080").parse()?;
-    common::serve_ops(addr, metrics, common::always_healthy(), api::router(state)).await
+    common::serve_ops(
+        addr,
+        metrics,
+        common::always_healthy(),
+        common::FaultFlags::new(),
+        api::router(state),
+    )
+    .await
 }

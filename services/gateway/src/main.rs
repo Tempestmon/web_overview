@@ -29,6 +29,7 @@ async fn main() -> anyhow::Result<()> {
         addr,
         metrics,
         common::always_healthy(),
+        common::FaultFlags::new(),
         routes::shop_router(state),
     )
     .await

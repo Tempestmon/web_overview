@@ -121,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
         ops_addr,
         metrics,
         common::always_healthy(),
+        common::FaultFlags::new(),
         axum::Router::new(),
     )
     .await

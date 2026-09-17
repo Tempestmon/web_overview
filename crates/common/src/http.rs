@@ -9,13 +9,15 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use metrics_exporter_prometheus::PrometheusHandle;
 
+use crate::faultflags::FaultFlags;
+
 pub type HealthFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync>;
 
 pub fn always_healthy() -> HealthFn {
     Arc::new(|| Box::pin(async { true }))
 }
 
-/// Builds `/healthz` + `/metrics` and serves them together with `extra`.
+/// Builds `/healthz`, `/metrics` and `/ops/fault` and serves them with `extra`.
 ///
 /// `/healthz` semantics are per-service: it should answer 200 when the
 /// process can do useful work. Docker and the chaos controller both rely on it.
@@ -23,11 +25,13 @@ pub async fn serve_ops(
     addr: SocketAddr,
     handle: PrometheusHandle,
     health: HealthFn,
+    flags: FaultFlags,
     extra: Router,
 ) -> anyhow::Result<()> {
     let router = Router::new()
         .route("/healthz", get(move || healthz(health.clone())))
         .route("/metrics", get(move || std::future::ready(handle.render())))
+        .merge(flags.routes())
         .merge(extra);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");
