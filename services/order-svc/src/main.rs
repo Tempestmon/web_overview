@@ -1,6 +1,7 @@
 mod grpc;
 mod kafka;
 mod menu_cache;
+mod payment;
 mod repo;
 mod status;
 
@@ -14,6 +15,7 @@ use sqlx::postgres::PgPoolOptions;
 use crate::grpc::OrderSvc;
 use crate::kafka::Producer;
 use crate::menu_cache::MenuCache;
+use crate::payment::PaymentClient;
 use crate::repo::Repo;
 
 #[tokio::main]
@@ -29,7 +31,9 @@ async fn main() -> anyhow::Result<()> {
     let brokers = config::required("KAFKA_BROKERS");
     let producer = Producer::new(&brokers, &service_id)?;
 
-    tokio::spawn(kafka::run_kitchen_events_consumer(
+    let payment = PaymentClient::connect_lazy(&config::required("PAYMENT_SVC_URL"), &service_id)?;
+
+    tokio::spawn(kafka::run_progress_consumer(
         brokers,
         service_id.clone(),
         repo.clone(),
@@ -47,6 +51,7 @@ async fn main() -> anyhow::Result<()> {
             repo,
             cache,
             producer,
+            payment,
         }))
         .serve_with_shutdown(grpc_addr, common::shutdown_signal());
     tracing::info!(%grpc_addr, "grpc listening");

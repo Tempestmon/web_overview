@@ -5,6 +5,7 @@ members = [
     "crates/proto",
     "services/gateway",
     "services/order-svc",
+    "services/payment-svc",
     "services/kitchen-svc",
     "services/loadgen",
     "control/chaos-controller",

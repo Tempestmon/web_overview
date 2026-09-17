@@ -9,12 +9,15 @@ use uuid::Uuid;
 
 use crate::kafka::Producer;
 use crate::menu_cache::MenuCache;
+use crate::payment::{PaymentClient, PaymentError};
 use crate::repo::{Line, MenuRow, NewOrder, OrderRow, Repo};
+use crate::status::OrderStatus;
 
 pub struct OrderSvc {
     pub repo: Repo,
     pub cache: MenuCache,
     pub producer: Producer,
+    pub payment: PaymentClient,
 }
 
 #[tonic::async_trait]
@@ -42,14 +45,30 @@ impl OrderService for OrderSvc {
             total_cents,
             lines,
         };
-        let row = self
+        let mut row = self
             .repo
             .insert_order(order)
             .await
             .map_err(db_unavailable)?;
 
-        // An order the kitchen never hears about would sit in "accepted" forever.
-        // Roll it back so the caller sees a clean failure instead of a ghost order.
+        // Payment is synchronous: the customer must know right away whether
+        // the order is placed. A failed or rejected charge rolls the row back
+        // so there is never an unpaid ghost order waiting for a kitchen.
+        if let Err(err) = self.payment.charge(row.id, total_cents).await {
+            tracing::warn!(%err, order_id = %row.id, "rolling back order: payment failed");
+            let _ = self.repo.delete_order(row.id).await;
+            return Err(match err {
+                PaymentError::Rejected(msg) => Status::failed_precondition(msg),
+                other => Status::unavailable(other.to_string()),
+            });
+        }
+        self.repo
+            .advance_status(row.id, OrderStatus::Paid)
+            .await
+            .map_err(db_unavailable)?;
+        row.status = OrderStatus::Paid.as_str().to_string();
+
+        // An order the kitchen never hears about would sit in "paid" forever.
         if let Err(err) = self.producer.publish_created(row.id).await {
             tracing::warn!(%err, order_id = %row.id, "rolling back order: kafka unavailable");
             let _ = self.repo.delete_order(row.id).await;

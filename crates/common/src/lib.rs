@@ -6,10 +6,12 @@ pub mod config;
 pub mod edge;
 pub mod faultflags;
 pub mod http;
+pub mod redis;
 pub mod telemetry;
 
 pub use breaker::{BreakerState, CircuitBreaker};
 pub use edge::Edge;
 pub use faultflags::{FaultFlags, Injected, InjectedFailure};
 pub use http::{HealthFn, always_healthy, serve_ops, shutdown_signal};
+pub use redis::LazyRedis;
 pub use telemetry::init as init_telemetry;

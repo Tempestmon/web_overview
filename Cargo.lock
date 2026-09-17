@@ -421,6 +421,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "metrics-util",
  "rand 0.9.5",
+ "redis",
  "serde",
  "thiserror",
  "tokio",
@@ -1702,6 +1703,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "tokio",
  "tonic",
  "tracing",
@@ -1744,6 +1746,22 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "payment-svc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "common",
+ "metrics",
+ "proto",
+ "rand 0.9.5",
+ "redis",
+ "tokio",
+ "tonic",
+ "tracing",
 ]
 
 [[package]]

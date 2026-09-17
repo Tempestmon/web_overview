@@ -76,7 +76,7 @@ async fn user_lifecycle(shop: Shop) {
 async fn shopping_session(shop: &Shop) {
     loop {
         let outcome = match shop.order_and_wait().await {
-            Ok(status) if status == "cooked" => "cooked",
+            Ok(status) if status == "delivered" => "delivered",
             Ok(_) => "timeout",
             Err(err) => {
                 tracing::debug!(%err, "order failed");
@@ -124,7 +124,7 @@ impl Shop {
     }
 
     async fn wait_for_terminal(&self, id: &str) -> anyhow::Result<String> {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(120);
         let mut last = String::from("accepted");
         while tokio::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -137,7 +137,7 @@ impl Shop {
                 Ok(resp) if resp.status().is_success() => {
                     let order: Order = resp.json().await?;
                     last = order.status;
-                    if last == "cooked" {
+                    if last == "delivered" {
                         break;
                     }
                 }

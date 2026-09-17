@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::client::{ApiError, OrderApi};
 
-const TERMINAL_STATUS: &str = "cooked";
-const SSE_MAX_AGE: Duration = Duration::from_secs(180);
+const TERMINAL_STATUS: &str = "delivered";
+const SSE_MAX_AGE: Duration = Duration::from_secs(300);
 const SSE_POLL: Duration = Duration::from_secs(1);
 
 #[derive(Clone)]

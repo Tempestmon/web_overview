@@ -13,6 +13,7 @@ use crate::status::OrderStatus;
 
 pub const TOPIC_CREATED: &str = "orders.created";
 pub const TOPIC_KITCHEN_EVENTS: &str = "orders.kitchen-events";
+pub const TOPIC_DELIVERY_EVENTS: &str = "orders.delivery-events";
 const CONSUMER_GROUP: &str = "order-svc";
 
 #[derive(Serialize, Deserialize)]
@@ -63,10 +64,10 @@ impl Producer {
     }
 }
 
-/// Applies kitchen progress to orders. Runs forever; broker outages surface
+/// Applies kitchen and courier progress to orders. Runs forever; broker outages surface
 /// as logged errors and the loop keeps retrying, which is what we want to
 /// demonstrate: an async consumer simply waits for the broker to come back.
-pub async fn run_kitchen_events_consumer(brokers: String, service_id: String, repo: Repo) {
+pub async fn run_progress_consumer(brokers: String, service_id: String, repo: Repo) {
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
         .set("group.id", CONSUMER_GROUP)
@@ -78,7 +79,7 @@ pub async fn run_kitchen_events_consumer(brokers: String, service_id: String, re
         .create()
         .expect("consumer config is valid");
     consumer
-        .subscribe(&[TOPIC_KITCHEN_EVENTS])
+        .subscribe(&[TOPIC_KITCHEN_EVENTS, TOPIC_DELIVERY_EVENTS])
         .expect("subscribe");
     let edge = Edge::new("kafka", service_id, "kafka");
 
@@ -87,7 +88,7 @@ pub async fn run_kitchen_events_consumer(brokers: String, service_id: String, re
             Ok(msg) => {
                 let handled = edge.observe(apply_event(&repo, msg.payload())).await;
                 if let Err(err) = handled {
-                    tracing::warn!(%err, "kitchen event not applied");
+                    tracing::warn!(%err, "progress event not applied");
                 }
                 if let Err(err) = consumer.commit_message(&msg, CommitMode::Async) {
                     tracing::warn!(%err, "offset commit failed");
@@ -105,6 +106,6 @@ async fn apply_event(repo: &Repo, payload: Option<&[u8]>) -> anyhow::Result<()> 
     let event: KitchenEvent = serde_json::from_slice(payload.unwrap_or_default())?;
     let status: OrderStatus = event.status.parse()?;
     let changed = repo.advance_status(event.order_id, status).await?;
-    tracing::debug!(order_id = %event.order_id, %status, changed, "kitchen event applied");
+    tracing::debug!(order_id = %event.order_id, %status, changed, "progress event applied");
     Ok(())
 }
