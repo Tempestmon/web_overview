@@ -119,7 +119,8 @@ impl PromClient {
             people_online: self.scalar("sum(loadgen_active_users)").await
                 + self.scalar("sum(gateway_sse_connections)").await,
             orders_per_min: self.scalar("sum(increase(orders_created_total[1m]))").await,
-            kafka_lag: self.scalar("sum(kafka_consumergroup_lag)").await,
+            // The exporter reports -1 for partitions without a committed offset.
+            kafka_lag: self.scalar("sum(kafka_consumergroup_lag)").await.max(0.0),
         }
     }
 }

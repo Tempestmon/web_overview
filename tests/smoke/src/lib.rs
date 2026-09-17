@@ -15,7 +15,7 @@ impl Stack {
     pub fn from_env() -> Self {
         Self {
             http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(5))
+                .timeout(Duration::from_secs(15))
                 .build()
                 .unwrap(),
             base: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".into()),

@@ -31,8 +31,31 @@ pub async fn serve_ops(
         .merge(extra);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");
-    axum::serve(listener, router).await?;
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+/// Resolves on SIGTERM or Ctrl-C. Docker sends SIGTERM on `stop`; without
+/// this it waits out the grace period and SIGKILLs, which makes every
+/// "break" in the panel take seconds instead of milliseconds.
+pub async fn shutdown_signal() {
+    let ctrl_c = tokio::signal::ctrl_c();
+    #[cfg(unix)]
+    {
+        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("install SIGTERM handler");
+        tokio::select! {
+            _ = ctrl_c => {}
+            _ = term.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = ctrl_c.await;
+    }
+    tracing::info!("shutdown signal received");
 }
 
 async fn healthz(health: HealthFn) -> impl IntoResponse {

@@ -7,5 +7,5 @@ pub mod http;
 pub mod telemetry;
 
 pub use edge::Edge;
-pub use http::{HealthFn, always_healthy, serve_ops};
+pub use http::{HealthFn, always_healthy, serve_ops, shutdown_signal};
 pub use telemetry::init as init_telemetry;

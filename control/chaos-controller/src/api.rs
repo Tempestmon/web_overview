@@ -89,7 +89,6 @@ enum ApiError {
     UnknownNode,
     UnsupportedFault,
     Refused(Refusal),
-    Docker(anyhow::Error),
     NotFound,
     Forbidden,
 }
@@ -118,7 +117,6 @@ impl IntoResponse for ApiError {
                 "you broke something recently".to_string(),
                 Some(retry_after.as_secs()),
             ),
-            ApiError::Docker(err) => (StatusCode::BAD_GATEWAY, format!("docker: {err}"), None),
             ApiError::NotFound => (StatusCode::NOT_FOUND, "no such fault".to_string(), None),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "not your fault".to_string(), None),
         };
@@ -164,16 +162,30 @@ async fn start_fault(
         )
         .map_err(ApiError::Refused)?;
 
-    let applied = match body.kind {
-        FaultKind::Stop => state.docker.stop(&container).await,
-        FaultKind::Pause => state.docker.pause(&container).await,
-    };
-    if let Err(err) = applied {
-        state.book.lock().await.finish(fault.id, Instant::now());
-        return Err(ApiError::Docker(err));
-    }
     tracing::info!(id = fault.id, node = %fault.node, kind = ?fault.kind, %owner, "fault started");
     metrics::counter!("chaos_faults_total", "node" => fault.node.clone()).increment(1);
+
+    // Applied in the background: `docker stop` can take seconds for
+    // components without a fast SIGTERM path, and the UI should not hang on
+    // it. The health monitor reports the outcome; a failed apply ends the
+    // fault so the book does not hold a phantom.
+    let apply_state = state.clone();
+    let apply_id = fault.id;
+    let apply_kind = body.kind;
+    tokio::spawn(async move {
+        let applied = match apply_kind {
+            FaultKind::Stop => apply_state.docker.stop(&container).await,
+            FaultKind::Pause => apply_state.docker.pause(&container).await,
+        };
+        if let Err(err) = applied {
+            tracing::error!(id = apply_id, %err, "fault apply failed");
+            apply_state
+                .book
+                .lock()
+                .await
+                .finish(apply_id, Instant::now());
+        }
+    });
 
     let ttl = fault.ends_at.saturating_duration_since(now);
     Ok((

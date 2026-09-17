@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
             cache,
             producer,
         }))
-        .serve(grpc_addr);
+        .serve_with_shutdown(grpc_addr, common::shutdown_signal());
     tracing::info!(%grpc_addr, "grpc listening");
 
     tokio::select! {
