@@ -38,6 +38,7 @@ pub async fn serve_ops(
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    crate::telemetry::shutdown();
     Ok(())
 }
 

@@ -55,7 +55,7 @@ rand = "0.9"
 rust-embed = { version = "8", features = ["axum"] }
 opentelemetry = "0.32"
 opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "http-proto", "reqwest-client"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "http-proto", "reqwest-blocking-client"] }
 opentelemetry-http = "0.32"
 tracing-opentelemetry = "0.33"
 http = "1"

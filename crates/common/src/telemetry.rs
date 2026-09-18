@@ -57,7 +57,9 @@ pub fn init(service_id: &str) -> PrometheusHandle {
 }
 
 /// OTLP over HTTP on purpose: the gRPC exporter would drag in a second
-/// tonic version next to the one the services use.
+/// tonic version next to the one the services use. The blocking reqwest
+/// client is deliberate too: the batch processor exports from its own
+/// thread, where an async client has no runtime to run on.
 fn tracer_provider(service_id: &str, endpoint: &str) -> anyhow::Result<SdkTracerProvider> {
     opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
     let exporter = opentelemetry_otlp::SpanExporter::builder()
