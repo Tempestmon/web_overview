@@ -282,7 +282,7 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
     };
     let mut broken = observed.broken.clone();
     broken.extend(faults.iter().map(|f| f.node.clone()));
-    let failing = failing_edges(&flow);
+    let failing = failing_edges(&flow, &state.topology);
     let states = derive_states(&state.topology, &broken, &observed.recovering, &failing);
 
     Snapshot {

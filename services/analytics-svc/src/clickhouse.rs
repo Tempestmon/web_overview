@@ -84,14 +84,19 @@ impl ClickHouse {
     async fn statement(&self, query: &str, body: String) -> anyhow::Result<String> {
         self.edge
             .observe(async {
-                let response = self
+                // ClickHouse insists on a Content-Length for POST, and reqwest
+                // sends none for an empty body. A statement without data goes
+                // in the body itself; data goes in the body with SQL in the URL.
+                let request = self
                     .http
                     .post(&self.url)
-                    .basic_auth(&self.user, Some(&self.password))
-                    .query(&[("query", query)])
-                    .body(body)
-                    .send()
-                    .await?;
+                    .basic_auth(&self.user, Some(&self.password));
+                let request = if body.is_empty() {
+                    request.body(query.to_string())
+                } else {
+                    request.query(&[("query", query)]).body(body)
+                };
+                let response = request.send().await?;
                 let status = response.status();
                 let text = response.text().await?;
                 anyhow::ensure!(status.is_success(), "clickhouse {status}: {text}");

@@ -46,6 +46,16 @@ impl Stack {
             .to_string())
     }
 
+    pub async fn create_order_raw(&self) -> anyhow::Result<reqwest::Response> {
+        Ok(self
+            .http
+            .post(format!("{}/api/shop/orders", self.base))
+            .header("x-client-id", "smoke")
+            .json(&serde_json::json!({"lines": [{"item_id": 1, "qty": 1}]}))
+            .send()
+            .await?)
+    }
+
     pub async fn order_status(&self, id: &str) -> anyhow::Result<String> {
         let v: Value = self
             .http
@@ -110,6 +120,58 @@ impl Stack {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         anyhow::bail!("{node} did not become {wanted} within {within:?}")
+    }
+
+    fn edge<'a>(snap: &'a Value, from: &str, to: &str) -> Option<&'a Value> {
+        snap["edges"]
+            .as_array()?
+            .iter()
+            .find(|e| e["from"] == from && e["to"] == to)
+    }
+
+    pub async fn wait_for_breaker(
+        &self,
+        dependency: &str,
+        wanted: &str,
+        within: Duration,
+    ) -> anyhow::Result<()> {
+        let deadline = Instant::now() + within;
+        while Instant::now() < deadline {
+            let snap = self.snapshot().await?;
+            let state = snap["edges"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|e| e["to"] == dependency && e["breaker"].is_string())
+                .and_then(|e| e["breaker"].as_str().map(str::to_string));
+            if state.as_deref() == Some(wanted) {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        anyhow::bail!("breaker for {dependency} did not become {wanted} within {within:?}")
+    }
+
+    pub async fn wait_for_edge_p95_above(
+        &self,
+        from: &str,
+        to: &str,
+        p95_ms: f64,
+        within: Duration,
+    ) -> anyhow::Result<()> {
+        let deadline = Instant::now() + within;
+        while Instant::now() < deadline {
+            let snap = self.snapshot().await?;
+            if Self::edge(&snap, from, to)
+                .and_then(|e| e["p95_ms"].as_f64())
+                .unwrap_or(0.0)
+                > p95_ms
+            {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+        anyhow::bail!("edge {from}->{to} p95 did not exceed {p95_ms} ms within {within:?}")
     }
 
     pub async fn wait_all_healthy(&self, within: Duration) -> anyhow::Result<()> {

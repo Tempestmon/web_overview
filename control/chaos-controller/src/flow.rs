@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
-use crate::topology::Topology;
+use crate::topology::{Proto, Topology};
 
 pub const FLOW_POLL: Duration = Duration::from_secs(2);
 
@@ -34,12 +34,22 @@ const FAILING_MIN_RPS: f64 = 0.2;
 const FAILING_ERROR_RATIO: f64 = 0.2;
 const FAILING_P95_S: f64 = 1.0;
 
-pub fn failing_edges(flow: &Flow) -> Vec<(String, String)> {
+/// Latency only counts for request/response edges: on a Kafka consume edge
+/// the "duration" is the handler's processing time (a kitchen cooking for
+/// seconds is fine), so only the error ratio applies there.
+pub fn failing_edges(flow: &Flow, topology: &Topology) -> Vec<(String, String)> {
+    let synchronous = |from: &str, to: &str| {
+        topology
+            .edges
+            .iter()
+            .find(|e| e.from == from && e.to == to)
+            .is_some_and(|e| e.proto != Proto::Kafka)
+    };
     flow.edges
         .iter()
-        .filter(|(_, r)| {
+        .filter(|((from, to), r)| {
             let erroring = r.rps > FAILING_MIN_RPS && r.error_rps / r.rps > FAILING_ERROR_RATIO;
-            erroring || r.p95_s > FAILING_P95_S
+            erroring || (r.p95_s > FAILING_P95_S && synchronous(from, to))
         })
         .map(|(k, _)| k.clone())
         .collect()
@@ -198,11 +208,19 @@ mod tests {
         }
     }
 
+    fn topology() -> Topology {
+        Topology::load(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../topology.json"
+        )))
+        .unwrap()
+    }
+
     #[test]
-    fn failing_edges_need_real_traffic_or_high_latency() {
+    fn failing_edges_need_real_traffic_or_high_latency_on_sync_edges() {
         let flow = flow_with(vec![
             (
-                ("a", "b"),
+                ("gateway-1", "order-svc"),
                 EdgeRate {
                     rps: 10.0,
                     error_rps: 5.0,
@@ -210,7 +228,7 @@ mod tests {
                 },
             ),
             (
-                ("c", "d"),
+                ("gateway-2", "order-svc"),
                 EdgeRate {
                     rps: 0.1,
                     error_rps: 0.1,
@@ -218,7 +236,7 @@ mod tests {
                 },
             ),
             (
-                ("e", "f"),
+                ("order-svc", "postgres"),
                 EdgeRate {
                     rps: 3.0,
                     error_rps: 0.0,
@@ -226,19 +244,39 @@ mod tests {
                 },
             ),
             (
-                ("g", "h"),
+                ("order-svc", "redis"),
                 EdgeRate {
                     rps: 3.0,
                     error_rps: 0.1,
                     p95_s: 0.2,
                 },
             ),
+            (
+                ("kafka", "kitchen-svc"),
+                EdgeRate {
+                    rps: 1.0,
+                    error_rps: 0.0,
+                    p95_s: 6.0,
+                },
+            ),
+            (
+                ("kafka", "courier-svc"),
+                EdgeRate {
+                    rps: 1.0,
+                    error_rps: 0.9,
+                    p95_s: 6.0,
+                },
+            ),
         ]);
-        let mut failing = failing_edges(&flow);
+        let mut failing = failing_edges(&flow, &topology());
         failing.sort();
         assert_eq!(
             failing,
-            vec![("a".into(), "b".into()), ("e".into(), "f".into())]
+            vec![
+                ("gateway-1".into(), "order-svc".into()),
+                ("kafka".into(), "courier-svc".into()),
+                ("order-svc".into(), "postgres".into()),
+            ]
         );
     }
 }
