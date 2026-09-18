@@ -59,7 +59,7 @@ minutes; later builds reuse the cached dependency layer.
 3. It applies the fault. `stop`/`pause` go through the Docker API
    (`docker-socket-proxy` exposes only `/containers` and `/exec`);
    `latency`/`loss` run `tc qdisc ... netem` inside the target container;
-   `app-error` calls the service's own `PUT /ops/fault` so half of its
+   `app-error` calls the service's own `PUT /ops/fault` so 90% of its
    responses fail. Which node offers which fault is declared in
    `topology.json`.
 4. Every second it publishes a snapshot over SSE: container health from

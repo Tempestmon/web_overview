@@ -28,7 +28,7 @@
     stop: 'Остановить', pause: 'Заморозить', latency: 'Замедлить сеть', loss: 'Терять пакеты', 'app-error': 'Инжектить ошибки',
   };
   const faultVerb: Record<FaultKind, string> = {
-    stop: 'остановлен', pause: 'заморожен', latency: 'тормозит', loss: 'теряет пакеты', 'app-error': 'ошибки 50%',
+    stop: 'остановлен', pause: 'заморожен', latency: 'тормозит', loss: 'теряет пакеты', 'app-error': 'ошибки 90%',
   };
 
   function pick(kind: FaultKind) {

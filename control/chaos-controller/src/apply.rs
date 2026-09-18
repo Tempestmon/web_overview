@@ -35,7 +35,9 @@ pub async fn apply(state: &AppState, node: &Node, kind: FaultKind) -> anyhow::Re
             state
                 .http
                 .put(ops_fault_url(node)?)
-                .json(&serde_json::json!({ "error_rate": 0.5, "latency_ms": 0 }))
+                // High enough that a consecutive-failure breaker trips within seconds
+                // and keeps re-opening on half-open probes.
+                .json(&serde_json::json!({ "error_rate": 0.9, "latency_ms": 0 }))
                 .send()
                 .await?
                 .error_for_status()?;
