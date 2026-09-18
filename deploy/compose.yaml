@@ -156,6 +156,8 @@ services:
       CLICKHOUSE_USER: chaos
       CLICKHOUSE_PASSWORD: chaos
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 0
+    volumes:
+      - ./deploy/clickhouse/limits.xml:/etc/clickhouse-server/config.d/limits.xml:ro
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     healthcheck:
@@ -164,9 +166,7 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-    # ClickHouse sizes its caches from the cgroup limit, so this is the
-    # whole memory budget, not just a ceiling.
-    mem_limit: 1g
+    mem_limit: 640m
 
   postgres:
     image: postgres:17-alpine
@@ -212,7 +212,7 @@ services:
       KAFKA_NUM_PARTITIONS: 12
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 24
-      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms256m
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/9092'"]
       interval: 5s

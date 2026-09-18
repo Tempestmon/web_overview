@@ -1,0 +1,13 @@
+<!-- The demo writes a few rows per second; ClickHouse's defaults assume a
+     server, not a 4 GB laptop VM shared with Kafka. Cap it hard. -->
+<clickhouse>
+    <max_server_memory_usage>419430400</max_server_memory_usage>
+    <mark_cache_size>33554432</mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+    <max_concurrent_queries>8</max_concurrent_queries>
+    <background_pool_size>2</background_pool_size>
+    <background_schedule_pool_size>2</background_schedule_pool_size>
+    <logger>
+        <level>warning</level>
+    </logger>
+</clickhouse>
