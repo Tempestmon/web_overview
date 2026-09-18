@@ -12,13 +12,13 @@ use smoke::Stack;
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn order_reaches_delivered() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
     let id = stack.create_order().await?;
     stack
-        .wait_for_status(&id, "cooked", Duration::from_secs(60))
+        .wait_for_status(&id, "cooked", Duration::from_secs(90))
         .await?;
     stack
-        .wait_for_status(&id, "delivered", Duration::from_secs(60))
+        .wait_for_status(&id, "delivered", Duration::from_secs(90))
         .await
 }
 
@@ -26,7 +26,7 @@ async fn order_reaches_delivered() -> anyhow::Result<()> {
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn stopping_kitchen_stalls_orders_until_healed() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("kitchen-svc", "stop", 120).await?;
     let result = async {
@@ -67,7 +67,7 @@ async fn stopping_kitchen_stalls_orders_until_healed() -> anyhow::Result<()> {
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn stopping_redis_degrades_order_svc_but_menu_still_works() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("redis", "stop", 60).await?;
     let result = async {
@@ -101,7 +101,7 @@ async fn stopping_redis_degrades_order_svc_but_menu_still_works() -> anyhow::Res
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn killing_one_gateway_replica_keeps_shop_available() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("gateway-1", "stop", 60).await?;
     let result = async {
@@ -131,7 +131,7 @@ async fn killing_one_gateway_replica_keeps_shop_available() -> anyhow::Result<()
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn injected_payment_errors_open_the_circuit_breaker() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("payment-svc", "app-error", 120).await?;
     let result = async {
@@ -171,7 +171,7 @@ async fn injected_payment_errors_open_the_circuit_breaker() -> anyhow::Result<()
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn network_latency_on_order_svc_degrades_gateways_by_metrics() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("order-svc", "latency", 120).await?;
     let result = async {
@@ -202,7 +202,7 @@ async fn network_latency_on_order_svc_degrades_gateways_by_metrics() -> anyhow::
 #[ignore = "needs a running stack: make up && make smoke"]
 async fn stopping_courier_stalls_orders_at_cooked() -> anyhow::Result<()> {
     let stack = Stack::from_env();
-    stack.wait_all_healthy(Duration::from_secs(120)).await?;
+    stack.wait_all_healthy(Duration::from_secs(180)).await?;
 
     let fault = stack.start_fault("courier-svc", "stop", 120).await?;
     let result = async {

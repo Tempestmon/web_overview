@@ -67,20 +67,28 @@ impl Stack {
         Ok(v["status"].as_str().unwrap_or("?").to_string())
     }
 
+    /// Waits until the order has reached `wanted` or any later status.
+    /// Intermediate states can last milliseconds (cooked → delivering is
+    /// one Kafka hop), so waiting for an exact match would be a coin toss.
     pub async fn wait_for_status(
         &self,
         id: &str,
         wanted: &str,
         within: Duration,
     ) -> anyhow::Result<()> {
+        let target = status_rank(wanted);
         let deadline = Instant::now() + within;
+        let mut last = String::from("?");
         while Instant::now() < deadline {
-            if self.order_status(id).await.ok().as_deref() == Some(wanted) {
-                return Ok(());
+            if let Ok(status) = self.order_status(id).await {
+                if status_rank(&status) >= target {
+                    return Ok(());
+                }
+                last = status;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        anyhow::bail!("order {id} did not reach {wanted} within {within:?}")
+        anyhow::bail!("order {id} did not reach {wanted} within {within:?}, last seen {last}")
     }
 
     pub async fn snapshot(&self) -> anyhow::Result<Value> {
@@ -252,4 +260,20 @@ fn describe(snap: &Value) -> String {
         snap["faults"].as_array().map(Vec::len).unwrap_or(0),
         snap["kafka_lag"]
     )
+}
+
+/// Position in the order lifecycle; unknown statuses rank lowest.
+fn status_rank(status: &str) -> usize {
+    [
+        "accepted",
+        "paid",
+        "cooking",
+        "cooked",
+        "delivering",
+        "delivered",
+    ]
+    .iter()
+    .position(|s| *s == status)
+    .map(|p| p + 1)
+    .unwrap_or(0)
 }
