@@ -286,7 +286,8 @@ services:
     volumes:
       - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
-    mem_limit: 256m
+    # Ingester + WAL replay need headroom; 160 MB got it OOM-killed.
+    mem_limit: 320m
 
   prometheus:
     image: prom/prometheus:v3.2.1
