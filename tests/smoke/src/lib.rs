@@ -180,8 +180,10 @@ impl Stack {
     pub async fn wait_all_healthy(&self, within: Duration) -> anyhow::Result<()> {
         const SETTLED_LAG: f64 = 20.0;
         let deadline = Instant::now() + within;
+        let mut last = String::new();
         while Instant::now() < deadline {
             let snap = self.snapshot().await?;
+            last = describe(&snap);
             let all_healthy = snap["nodes"]
                 .as_array()
                 .unwrap()
@@ -193,7 +195,7 @@ impl Stack {
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        anyhow::bail!("stack did not become fully healthy and settled within {within:?}")
+        anyhow::bail!("stack did not become fully healthy and settled within {within:?}: {last}")
     }
 
     pub async fn start_fault(&self, node: &str, kind: &str, ttl_s: u64) -> anyhow::Result<u64> {
@@ -227,4 +229,27 @@ impl Stack {
         );
         Ok(())
     }
+}
+
+/// One-line summary of a snapshot for failure messages.
+fn describe(snap: &Value) -> String {
+    let unhealthy: Vec<String> = snap["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|n| n["state"] != "healthy")
+        .map(|n| {
+            format!(
+                "{}={}",
+                n["id"].as_str().unwrap_or("?"),
+                n["state"].as_str().unwrap_or("?")
+            )
+        })
+        .collect();
+    format!(
+        "unhealthy=[{}] faults={} lag={}",
+        unhealthy.join(","),
+        snap["faults"].as_array().map(Vec::len).unwrap_or(0),
+        snap["kafka_lag"]
+    )
 }
