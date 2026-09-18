@@ -47,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let health = common::always_healthy();
 
     let grpc = tonic::transport::Server::builder()
+        .layer(common::trace::grpc_trace_layer())
         .add_service(OrderServiceServer::new(OrderSvc {
             repo,
             cache,

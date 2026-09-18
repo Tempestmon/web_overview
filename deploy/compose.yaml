@@ -38,6 +38,7 @@ services:
     command: ["gateway"]
     environment:
       SERVICE_ID: gateway-1
+      OTLP_ENDPOINT: http://tempo:4318
       ORDER_SVC_URL: http://order-svc:50051
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8080/healthz"]
@@ -50,6 +51,7 @@ services:
     command: ["gateway"]
     environment:
       SERVICE_ID: gateway-2
+      OTLP_ENDPOINT: http://tempo:4318
       ORDER_SVC_URL: http://order-svc:50051
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8080/healthz"]
@@ -62,6 +64,7 @@ services:
     command: ["order-svc"]
     environment:
       SERVICE_ID: order-svc
+      OTLP_ENDPOINT: http://tempo:4318
       DATABASE_URL: postgres://chaos:chaos@postgres:5432/chaos
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
@@ -81,6 +84,7 @@ services:
     command: ["kitchen-svc"]
     environment:
       SERVICE_ID: kitchen-svc
+      OTLP_ENDPOINT: http://tempo:4318
       KAFKA_BROKERS: kafka:9092
       KAFKA_PARTITIONS: 12
       # Kitchen throughput ceiling is partitions / avg_cook. Keep it above the
@@ -101,6 +105,7 @@ services:
     command: ["payment-svc"]
     environment:
       SERVICE_ID: payment-svc
+      OTLP_ENDPOINT: http://tempo:4318
       REDIS_URL: redis://redis:6379
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8081/healthz"]
@@ -113,6 +118,7 @@ services:
     command: ["courier-svc"]
     environment:
       SERVICE_ID: courier-svc
+      OTLP_ENDPOINT: http://tempo:4318
       KAFKA_BROKERS: kafka:9092
       KAFKA_PARTITIONS: 12
       COURIER_MIN_MS: 4000
@@ -130,6 +136,7 @@ services:
     command: ["analytics-svc"]
     environment:
       SERVICE_ID: analytics-svc
+      OTLP_ENDPOINT: http://tempo:4318
       KAFKA_BROKERS: kafka:9092
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: chaos
@@ -272,6 +279,15 @@ services:
     restart: unless-stopped
     mem_limit: 64m
 
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    mem_limit: 256m
+
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: prometheus
@@ -303,3 +319,4 @@ services:
 
 volumes:
   prometheus-data:
+  tempo-data:

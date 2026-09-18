@@ -15,16 +15,21 @@ containers get stopped or frozen through the Docker API.
    users ────────┤                              │
                  └─► gateway-1 ──┐   gateway-2 ◄┘
                                  │ gRPC
-                                 ▼
-                             order-svc ──SQL──► postgres
-                                 │  ▲    └─cache─► redis
-                        produce  │  │ consume
-                                 ▼  │
-                               kafka (orders.created / orders.kitchen-events)
-                                 │  ▲
-                         consume ▼  │ produce
-                             kitchen-svc
+                                 ▼                gRPC + circuit breaker
+                             order-svc ─────────────────► payment-svc ──► redis (idempotency)
+                              │  │ ▲ └─SQL──► postgres
+                              │  │ │  └─cache─► redis
+                      produce │  │ │ consume
+                              ▼  ▼ │
+                       kafka: orders.created → kitchen-svc → orders.kitchen-events
+                                                  │                 │
+                                                  ▼                 ▼
+                              courier-svc ─► orders.delivery-events   analytics-svc ─► clickhouse
 ```
+
+Order lifecycle: `accepted → paid → cooking → cooked → delivering → delivered`.
+Payment is synchronous (the customer learns immediately), everything after
+it is asynchronous through Kafka.
 
 ## Run it locally
 
@@ -51,12 +56,20 @@ minutes; later builds reuse the cached dependency layer.
 2. The controller checks the shared-world rules: one fault at a time, a
    cooldown after each, one fault per IP per two minutes. `ADMIN_TOKEN` in
    the `X-Admin-Token` header bypasses them.
-3. It stops or pauses the container through `docker-socket-proxy`, which
-   only exposes the `/containers` API.
+3. It applies the fault. `stop`/`pause` go through the Docker API
+   (`docker-socket-proxy` exposes only `/containers` and `/exec`);
+   `latency`/`loss` run `tc qdisc ... netem` inside the target container;
+   `app-error` calls the service's own `PUT /ops/fault` so half of its
+   responses fail. Which node offers which fault is declared in
+   `topology.json`.
 4. Every second it publishes a snapshot over SSE: container health from
    Docker, per-edge request rates from Prometheus, and derived states.
    A broken node is red; everything that transitively depends on it through
    a hard edge is yellow. Soft edges (the Redis cache) degrade one hop only.
+   Yellow also comes from live metrics: an edge with more than 20% errors,
+   or a request/response edge with p95 above one second, degrades its
+   caller even when every container is up. The `order-svc → payment-svc`
+   edge shows the circuit breaker state (`CB open` / `half-open`).
 5. When the TTL expires, or the owner clicks *Fix*, the container comes back.
    A controller restart reconciles anything left stopped.
 
@@ -73,8 +86,9 @@ make smoke       # end-to-end tests against a running stack
 make dashboards  # regenerate Grafana dashboards from deploy/grafana/gen_dashboards.py
 ```
 
-Layout: `crates/common` (metrics, health, config), `crates/proto` (gRPC
-contract), `services/*` (data plane and load generator),
+Layout: `crates/common` (metrics, health, config, circuit breaker, fault
+flags), `crates/proto` (gRPC contracts), `services/*` (data plane and load
+generator),
 `control/chaos-controller`, `web/` (Svelte), `deploy/` (compose, Traefik,
 Prometheus, Grafana, Ansible), `tests/smoke`.
 
@@ -93,6 +107,6 @@ ansible-playbook -i deploy/ansible/inventory deploy/ansible/site.yml
 ## Roadmap
 
 See `docs/superpowers/specs/2026-09-17-chaos-panel-design.md` for the design
-and the phased roadmap: payment service with a circuit breaker, courier
-service, ClickHouse analytics, network faults (latency, packet loss),
-metrics-driven degradation, tracing.
+and the phased roadmap. Phases 1 and 2 are done (see the spec's roadmap
+table); next are public hardening (rate limits, nightly reset, alerts on
+the stand itself), tracing with Tempo, and guided failure scenarios.

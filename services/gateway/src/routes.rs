@@ -76,6 +76,8 @@ pub fn shop_router(state: AppState) -> Router {
             state.clone(),
             record_inbound,
         ))
+        // Outermost, so the request span wraps the middleware and handlers.
+        .layer(common::trace::http_trace_layer())
         .with_state(state)
 }
 
@@ -86,10 +88,16 @@ async fn record_inbound(
     next: Next,
 ) -> Response {
     let started = Instant::now();
-    let response = next.run(req).await;
+    let mut response = next.run(req).await;
     state
         .inbound
         .record(!response.status().is_server_error(), started.elapsed());
+    // Lets the shop page link straight to this request's trace in Grafana.
+    if let Ok(value) = axum::http::HeaderValue::from_str(&common::trace::current_trace_id())
+        && !value.is_empty()
+    {
+        response.headers_mut().insert("x-trace-id", value);
+    }
     response
 }
 
@@ -205,7 +213,8 @@ fn view(order: Order) -> OrderView {
 
 fn error_message(err: &ApiError) -> String {
     match err {
-        ApiError::Unavailable => "order service unavailable".to_string(),
+        ApiError::Unavailable(msg) if msg.is_empty() => "order service unavailable".to_string(),
+        ApiError::Unavailable(msg) => msg.clone(),
         ApiError::InvalidArgument(msg) => msg.clone(),
         ApiError::NotFound => "order not found".to_string(),
     }
@@ -214,7 +223,7 @@ fn error_message(err: &ApiError) -> String {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match &self {
-            ApiError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            ApiError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             ApiError::InvalidArgument(_) => StatusCode::BAD_REQUEST,
             ApiError::NotFound => StatusCode::NOT_FOUND,
         };
@@ -250,7 +259,7 @@ mod tests {
                     from_cache: false,
                 })
             } else {
-                Err(ApiError::Unavailable)
+                Err(ApiError::Unavailable(String::new()))
             }
         }
         async fn create(
@@ -259,7 +268,7 @@ mod tests {
             client_id: String,
         ) -> Result<Order, ApiError> {
             if !self.available {
-                return Err(ApiError::Unavailable);
+                return Err(ApiError::Unavailable(String::new()));
             }
             Ok(Order {
                 id: "o1".into(),

@@ -99,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         ),
     };
     let grpc = tonic::transport::Server::builder()
+        .layer(common::trace::grpc_trace_layer())
         .add_service(PaymentServiceServer::new(svc))
         .serve_with_shutdown(grpc_addr, common::shutdown_signal());
     tracing::info!(%grpc_addr, "grpc listening");

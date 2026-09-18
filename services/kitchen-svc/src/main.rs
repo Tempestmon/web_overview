@@ -14,6 +14,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use uuid::Uuid;
 
 const TOPIC_CREATED: &str = "orders.created";
@@ -81,9 +82,15 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match queue.recv().await {
                     Ok(msg) => {
+                        let span = tracing::info_span!("kafka.consume", topic = TOPIC_CREATED);
+                        common::trace::adopt_parent(
+                            &span,
+                            common::trace::extract_kafka(msg.headers()),
+                        );
                         let result = kitchen
                             .consume_edge
                             .observe(kitchen.cook(msg.payload()))
+                            .instrument(span)
                             .await;
                         if let Err(err) = result {
                             tracing::warn!(%err, partition, "order skipped");
@@ -155,7 +162,8 @@ impl Kitchen {
                     .send(
                         FutureRecord::to(TOPIC_KITCHEN_EVENTS)
                             .key(&key)
-                            .payload(&payload),
+                            .payload(&payload)
+                            .headers(common::trace::kafka_headers()),
                         Duration::from_secs(5),
                     )
                     .await

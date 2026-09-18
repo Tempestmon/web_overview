@@ -8,6 +8,7 @@ pub mod faultflags;
 pub mod http;
 pub mod redis;
 pub mod telemetry;
+pub mod trace;
 
 pub use breaker::{BreakerState, CircuitBreaker};
 pub use edge::Edge;

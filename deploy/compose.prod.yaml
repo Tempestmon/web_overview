@@ -49,6 +49,7 @@ services:
   loadgen: { restart: always }
   kafka-exporter: { restart: always }
   prometheus: { restart: always }
+  tempo: { restart: always }
   grafana: { restart: always }
 
 volumes:

@@ -81,7 +81,11 @@ impl PaymentClient {
         };
         let response = self
             .edge
-            .observe(client.charge(request))
+            .observe(async {
+                let mut request = tonic::Request::new(request);
+                common::trace::inject_grpc(request.metadata_mut());
+                client.charge(request).await
+            })
             .await
             .map_err(|status| match status.code() {
                 Code::InvalidArgument | Code::FailedPrecondition => {

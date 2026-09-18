@@ -1,17 +1,40 @@
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 const LATENCY_BUCKETS: &[f64] = &[
     0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
 ];
 
-/// Installs tracing and the Prometheus recorder. Every metric gets a
-/// `service` label so dashboards can filter by instance without each
-/// service remembering to add it.
+/// Installs tracing (stdout, plus OTLP spans when `OTLP_ENDPOINT` is set)
+/// and the Prometheus recorder. Every metric gets a `service` label so
+/// dashboards can filter by instance without each service remembering to
+/// add it.
 pub fn init(service_id: &str) -> PrometheusHandle {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .with_target(false)
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
+    let fmt = tracing_subscriber::fmt::layer().with_target(false);
+    let otel = std::env::var("OTLP_ENDPOINT")
+        .ok()
+        .filter(|e| !e.is_empty())
+        .and_then(|endpoint| match tracer_provider(service_id, &endpoint) {
+            Ok(provider) => Some(
+                tracing_opentelemetry::layer().with_tracer(provider.tracer(service_id.to_string())),
+            ),
+            Err(err) => {
+                eprintln!("otlp exporter disabled: {err}");
+                None
+            }
+        });
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt)
+        .with(otel)
         .init();
 
     PrometheusBuilder::new()
@@ -23,4 +46,24 @@ pub fn init(service_id: &str) -> PrometheusHandle {
         .expect("buckets are non-empty")
         .install_recorder()
         .expect("prometheus recorder installs once per process")
+}
+
+/// OTLP over HTTP on purpose: the gRPC exporter would drag in a second
+/// tonic version next to the one the services use.
+fn tracer_provider(service_id: &str, endpoint: &str) -> anyhow::Result<SdkTracerProvider> {
+    opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(format!("{}/v1/traces", endpoint.trim_end_matches('/')))
+        .build()?;
+    let provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(
+            Resource::builder()
+                .with_service_name(service_id.to_string())
+                .build(),
+        )
+        .build();
+    opentelemetry::global::set_tracer_provider(provider.clone());
+    Ok(provider)
 }

@@ -13,6 +13,7 @@ use common::{Edge, config};
 use rdkafka::Message;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use tracing::Instrument;
 
 use crate::clickhouse::ClickHouse;
 use crate::rows::{
@@ -81,8 +82,11 @@ async fn run_consumer(brokers: String, service_id: String, clickhouse: ClickHous
         tokio::select! {
             received = consumer.recv() => match received {
                 Ok(msg) => {
+                    let span = tracing::info_span!("kafka.consume", topic = msg.topic());
+                    common::trace::adopt_parent(&span, common::trace::extract_kafka(msg.headers()));
                     let parsed = edge
                         .observe(async { row_from_message(msg.topic(), msg.payload().unwrap_or_default(), Utc::now()) })
+                        .instrument(span)
                         .await;
                     match parsed {
                         Ok(row) => buffer.push(row),

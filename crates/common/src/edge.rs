@@ -1,5 +1,7 @@
 use std::future::Future;
+
 use std::time::{Duration, Instant};
+use tracing::Instrument;
 
 /// One directed call path between two components of the demo system.
 ///
@@ -22,12 +24,16 @@ impl Edge {
         }
     }
 
+    /// Times the call, counts it, and wraps it in a span so every hop of a
+    /// request shows up in the trace without per-call-site instrumentation.
     pub async fn observe<T, E, F>(&self, call: F) -> Result<T, E>
     where
         F: Future<Output = Result<T, E>>,
     {
+        let span =
+            tracing::info_span!("edge", src = %self.src, dst = %self.dst, proto = self.proto);
         let started = Instant::now();
-        let result = call.await;
+        let result = call.instrument(span).await;
         self.record(result.is_ok(), started.elapsed());
         result
     }

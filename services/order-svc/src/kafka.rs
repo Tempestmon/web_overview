@@ -6,6 +6,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::repo::Repo;
@@ -53,7 +54,10 @@ impl Producer {
             .observe(async {
                 self.inner
                     .send(
-                        FutureRecord::to(TOPIC_CREATED).key(&key).payload(&payload),
+                        FutureRecord::to(TOPIC_CREATED)
+                            .key(&key)
+                            .payload(&payload)
+                            .headers(common::trace::kafka_headers()),
                         Duration::from_secs(3),
                     )
                     .await
@@ -86,7 +90,12 @@ pub async fn run_progress_consumer(brokers: String, service_id: String, repo: Re
     loop {
         match consumer.recv().await {
             Ok(msg) => {
-                let handled = edge.observe(apply_event(&repo, msg.payload())).await;
+                let span = tracing::info_span!("kafka.consume", topic = msg.topic());
+                common::trace::adopt_parent(&span, common::trace::extract_kafka(msg.headers()));
+                let handled = edge
+                    .observe(apply_event(&repo, msg.payload()))
+                    .instrument(span)
+                    .await;
                 if let Err(err) = handled {
                     tracing::warn!(%err, "progress event not applied");
                 }

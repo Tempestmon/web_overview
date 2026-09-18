@@ -8,7 +8,8 @@ use tonic::transport::{Channel, Endpoint};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ApiError {
-    Unavailable,
+    /// Upstream said why (e.g. "payment circuit open"); the customer sees it.
+    Unavailable(String),
     InvalidArgument(String),
     NotFound,
 }
@@ -18,7 +19,7 @@ impl From<tonic::Status> for ApiError {
         match status.code() {
             Code::InvalidArgument => ApiError::InvalidArgument(status.message().to_string()),
             Code::NotFound => ApiError::NotFound,
-            _ => ApiError::Unavailable,
+            _ => ApiError::Unavailable(status.message().to_string()),
         }
     }
 }
@@ -41,7 +42,7 @@ pub struct GrpcOrderClient {
 impl GrpcOrderClient {
     pub fn connect_lazy(url: &str, service_id: &str) -> anyhow::Result<Self> {
         let channel = Endpoint::from_shared(url.to_string())?
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(4))
             .connect_timeout(Duration::from_secs(1))
             .connect_lazy();
         Ok(Self {
@@ -60,7 +61,11 @@ impl OrderApi for GrpcOrderClient {
     async fn menu(&self) -> Result<Menu, ApiError> {
         let resp = self
             .edge
-            .observe(self.client().get_menu(GetMenuRequest {}))
+            .observe(async {
+                let mut request = tonic::Request::new(GetMenuRequest {});
+                common::trace::inject_grpc(request.metadata_mut());
+                self.client().get_menu(request).await
+            })
             .await?;
         Ok(resp.into_inner())
     }
@@ -68,10 +73,11 @@ impl OrderApi for GrpcOrderClient {
     async fn create(&self, lines: Vec<OrderLine>, client_id: String) -> Result<Order, ApiError> {
         let resp = self
             .edge
-            .observe(
-                self.client()
-                    .create_order(CreateOrderRequest { lines, client_id }),
-            )
+            .observe(async {
+                let mut request = tonic::Request::new(CreateOrderRequest { lines, client_id });
+                common::trace::inject_grpc(request.metadata_mut());
+                self.client().create_order(request).await
+            })
             .await?;
         Ok(resp.into_inner())
     }
@@ -79,7 +85,11 @@ impl OrderApi for GrpcOrderClient {
     async fn get(&self, id: String) -> Result<Order, ApiError> {
         let resp = self
             .edge
-            .observe(self.client().get_order(GetOrderRequest { id }))
+            .observe(async {
+                let mut request = tonic::Request::new(GetOrderRequest { id });
+                common::trace::inject_grpc(request.metadata_mut());
+                self.client().get_order(request).await
+            })
             .await?;
         Ok(resp.into_inner())
     }

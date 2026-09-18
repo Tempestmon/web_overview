@@ -14,6 +14,7 @@
   let order = $state<Order | null>(null);
   let history = $state<{ status: string; at: string }[]>([]);
   let orderError = $state<string | null>(null);
+  let traceId = $state<string | null>(null);
   let placing = $state(false);
   let es: EventSource | null = null;
 
@@ -67,6 +68,7 @@
       const body = await r.json();
       if (!r.ok) throw new Error(body.error ?? r.statusText);
       order = body;
+      traceId = r.headers.get('x-trace-id');
       cart = {};
       follow(body.id);
     } catch (e) {
@@ -93,6 +95,18 @@
   }
 
   const rub = (cents: number) => (cents / 100).toLocaleString('ru-RU') + ' ₽';
+
+  // Grafana Explore deep link into Tempo for the order's trace.
+  function traceUrl(id: string) {
+    const panes = {
+      a: {
+        datasource: 'tempo',
+        queries: [{ refId: 'A', datasource: { type: 'tempo', uid: 'tempo' }, queryType: 'traceql', query: id }],
+        range: { from: 'now-1h', to: 'now' },
+      },
+    };
+    return `/grafana/explore?schemaVersion=1&panes=${encodeURIComponent(JSON.stringify(panes))}`;
+  }
 </script>
 
 <header class="topbar">
@@ -141,7 +155,12 @@
   <section>
     <h2>Ваш заказ</h2>
     {#if order}
-      <p>№ <span class="num">{order.id.slice(0, 8)}</span> на <span class="num">{rub(order.total_cents)}</span></p>
+      <p>
+        № <span class="num">{order.id.slice(0, 8)}</span> на <span class="num">{rub(order.total_cents)}</span>
+        {#if traceId}
+          · <a href={traceUrl(traceId)} target="_blank" rel="noopener">трейс заказа ↗</a>
+        {/if}
+      </p>
       <ol class="timeline">
         {#each STEPS as step, i}
           {@const reached = STEPS.indexOf(order.status) >= i}

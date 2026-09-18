@@ -14,8 +14,8 @@ const NETEM_DELAY: &[&str] = &[
     "root",
     "netem",
     "delay",
-    "800ms",
-    "200ms",
+    "400ms",
+    "100ms",
     "distribution",
     "normal",
 ];
