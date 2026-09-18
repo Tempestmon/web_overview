@@ -44,7 +44,7 @@ make up                   # builds one image with every service, starts 14 conta
 |---|---|
 | http://localhost:8080/ | the panel |
 | http://localhost:8080/order | the food-delivery app |
-| http://localhost:8080/grafana/ | Grafana (anonymous viewer) |
+| http://localhost:8080/grafana/ | Grafana (anonymous viewer; Tempo traces under Explore) |
 | http://localhost:9090/ | Prometheus |
 
 The first build compiles the Rust workspace inside Docker and takes several
@@ -75,6 +75,14 @@ minutes; later builds reuse the cached dependency layer.
 
 Node ids, container names, edge semantics and screen positions all live in
 one file, `topology.json`, read by both the controller and the frontend.
+
+## Tracing
+
+Every service exports spans to Tempo over OTLP/HTTP when `OTLP_ENDPOINT`
+is set. The W3C `traceparent` travels in HTTP headers, gRPC metadata and
+Kafka message headers, so one order is one trace from the gateway through
+payment, kitchen, courier and analytics. The gateway returns the trace id
+in `x-trace-id`; the shop page links each order to its trace in Grafana.
 
 ## Development
 
