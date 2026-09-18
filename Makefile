@@ -2,7 +2,7 @@ COMPOSE := docker compose --project-directory . -f deploy/compose.yaml
 DEV     := $(COMPOSE) -f deploy/compose.dev.yaml
 PROD    := $(COMPOSE) -f deploy/compose.prod.yaml
 
-.PHONY: up down restart logs ps build test smoke web fmt lint dashboards prod-up prod-down
+.PHONY: up down restart rebuild logs ps build test smoke web fmt lint dashboards prod-up prod-down
 
 up: ## build images and start the whole stack locally
 	$(DEV) up -d --build
@@ -11,6 +11,11 @@ down: ## stop and remove containers (keeps images)
 	$(DEV) down --remove-orphans
 
 restart: down up
+
+rebuild: ## stop the stack first: a release build next to a running stack swaps a 4 GB VM to death
+	$(DEV) down --remove-orphans
+	$(DEV) build
+	$(DEV) up -d
 
 logs:
 	$(DEV) logs -f --tail=100 $(S)

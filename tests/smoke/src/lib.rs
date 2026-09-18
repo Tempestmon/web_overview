@@ -174,7 +174,11 @@ impl Stack {
         anyhow::bail!("edge {from}->{to} p95 did not exceed {p95_ms} ms within {within:?}")
     }
 
+    /// Healthy nodes, no active fault, and no Kafka backlog: a stand that
+    /// just recovered from a fault (or a rebuild) needs a moment before its
+    /// timings mean anything.
     pub async fn wait_all_healthy(&self, within: Duration) -> anyhow::Result<()> {
+        const SETTLED_LAG: f64 = 20.0;
         let deadline = Instant::now() + within;
         while Instant::now() < deadline {
             let snap = self.snapshot().await?;
@@ -183,12 +187,13 @@ impl Stack {
                 .unwrap()
                 .iter()
                 .all(|n| n["state"] == "healthy");
-            if all_healthy && snap["faults"].as_array().unwrap().is_empty() {
+            let settled = snap["kafka_lag"].as_f64().unwrap_or(0.0) <= SETTLED_LAG;
+            if all_healthy && settled && snap["faults"].as_array().unwrap().is_empty() {
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        anyhow::bail!("stack did not become fully healthy within {within:?}")
+        anyhow::bail!("stack did not become fully healthy and settled within {within:?}")
     }
 
     pub async fn start_fault(&self, node: &str, kind: &str, ttl_s: u64) -> anyhow::Result<u64> {
