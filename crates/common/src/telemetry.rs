@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::WithExportConfig;
@@ -7,6 +9,10 @@ use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+
+/// The provider must outlive every span: dropping the last handle shuts
+/// the batch exporter down, so it lives here for the whole process.
+static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
 
 const LATENCY_BUCKETS: &[f64] = &[
     0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
@@ -23,9 +29,11 @@ pub fn init(service_id: &str) -> PrometheusHandle {
         .ok()
         .filter(|e| !e.is_empty())
         .and_then(|endpoint| match tracer_provider(service_id, &endpoint) {
-            Ok(provider) => Some(
-                tracing_opentelemetry::layer().with_tracer(provider.tracer(service_id.to_string())),
-            ),
+            Ok(provider) => {
+                let tracer = provider.tracer(service_id.to_string());
+                let _ = TRACER_PROVIDER.set(provider);
+                Some(tracing_opentelemetry::layer().with_tracer(tracer))
+            }
             Err(err) => {
                 eprintln!("otlp exporter disabled: {err}");
                 None
@@ -66,4 +74,13 @@ fn tracer_provider(service_id: &str, endpoint: &str) -> anyhow::Result<SdkTracer
         .build();
     opentelemetry::global::set_tracer_provider(provider.clone());
     Ok(provider)
+}
+
+/// Flushes buffered spans; call once the server has stopped accepting work.
+pub fn shutdown() {
+    if let Some(provider) = TRACER_PROVIDER.get()
+        && let Err(err) = provider.shutdown()
+    {
+        eprintln!("tracer shutdown: {err}");
+    }
 }
