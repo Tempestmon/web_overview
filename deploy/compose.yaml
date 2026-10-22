@@ -283,11 +283,14 @@ services:
     image: grafana/tempo:2.7.1
     container_name: tempo
     command: ["-config.file=/etc/tempo.yaml"]
+    environment:
+      # Makes the Go GC work within the cgroup instead of finding out via OOM.
+      GOMEMLIMIT: 400MiB
     volumes:
       - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
-    # Ingester + WAL replay need headroom; 160 MB got it OOM-killed.
-    mem_limit: 320m
+    # Block completion spikes memory; 320 MB got it OOM-killed.
+    mem_limit: 512m
 
   prometheus:
     image: prom/prometheus:v3.2.1

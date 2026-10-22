@@ -8,6 +8,12 @@ distributor:
         http:
           endpoint: "0.0.0.0:4318"
 
+# Small blocks keep the completion spike small; retention is hours anyway.
+ingester:
+  max_block_duration: 2m
+  max_block_bytes: 20000000
+  complete_block_timeout: 1m
+
 storage:
   trace:
     backend: local
