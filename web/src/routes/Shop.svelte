@@ -112,7 +112,7 @@
 <header class="topbar">
   <h1>Доставка еды</h1>
   <span style="color:var(--muted);font-size:13px">та самая система со схемы, глазами пользователя</span>
-  <nav style="margin-left:auto">
+  <nav>
     <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }}>← К схеме</a>
   </nav>
 </header>

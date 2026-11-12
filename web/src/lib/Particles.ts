@@ -17,6 +17,17 @@ interface EdgeRun {
 
 const MAX_SPAWN_RPS = 40;
 const BASE_SPEED = 0.35; // fraction of edge per second
+// A busy edge should also look faster, but dots that cross it in under a
+// second stop reading as a flow, hence the modest ceiling.
+const MAX_SPEED_BOOST = 1.5;
+
+export function spawnPerSecond(rps: number): number {
+  return Math.min(Math.max(rps, 0), MAX_SPAWN_RPS);
+}
+
+export function speedFor(rps: number): number {
+  return BASE_SPEED * (1 + (MAX_SPEED_BOOST - 1) * (spawnPerSecond(rps) / MAX_SPAWN_RPS));
+}
 const NODE_HALF_W = 78;
 const NODE_HALF_H = 36;
 
@@ -77,10 +88,10 @@ export class ParticleField {
 
   private step(dt: number) {
     for (const run of this.runs.values()) {
-      run.spawnDebt += Math.min(run.rps, MAX_SPAWN_RPS) * dt;
+      run.spawnDebt += spawnPerSecond(run.rps) * dt;
       while (run.spawnDebt >= 1) {
         run.spawnDebt -= 1;
-        run.particles.push({ t: 0, speed: BASE_SPEED * (0.8 + Math.random() * 0.4), error: Math.random() < run.errorShare });
+        run.particles.push({ t: 0, speed: speedFor(run.rps) * (0.8 + Math.random() * 0.4), error: Math.random() < run.errorShare });
       }
       for (const p of run.particles) p.t += p.speed * dt;
       run.particles = run.particles.filter((p) => p.t < 1);
