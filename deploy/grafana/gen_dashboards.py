@@ -86,7 +86,50 @@ kafka = dashboard("kafka", "Chaos Panel · Kafka", [
     panel(4, "Orders in kitchen", [target("sum(kitchen_orders_in_progress)", "cooking")], 12, 8),
 ])
 
+# Anonymous visitors are Viewers and Viewers cannot open Explore, so traces
+# get a dashboard of their own; the shop page links here with ?var-traceId=.
+TEMPO = {"type": "tempo", "uid": "tempo"}
+TRACE_LINK = "/grafana/d/traces/traces?var-traceId=${__value.raw}"
+
+
+def tempo_panel(pid, kind, title, description, query, y, h, **target_extra):
+    return {
+        "id": pid,
+        "type": kind,
+        "title": title,
+        "description": description,
+        "datasource": TEMPO,
+        "gridPos": {"x": 0, "y": y, "w": 24, "h": h},
+        "targets": [{"refId": "A", "datasource": TEMPO, "queryType": "traceql", "query": query, **target_extra}],
+        "fieldConfig": {"defaults": {}, "overrides": []},
+        "options": {},
+    }
+
+
+recent_orders = tempo_panel(
+    1, "table", "Recent orders", "Latest order requests; click a trace ID to open it below.",
+    '{span.path="/api/shop/orders" && span.method="POST"}', 0, 9, limit=20, tableType="traces",
+)
+recent_orders["fieldConfig"]["overrides"] = [{
+    "matcher": {"id": "byName", "options": "traceID"},
+    "properties": [{"id": "links", "value": [{"title": "Open trace", "url": TRACE_LINK}]}],
+}]
+trace_var = {
+    "name": "traceId",
+    "label": "Trace ID",
+    "type": "textbox",
+    "query": "",
+    "current": {"text": "", "value": ""},
+}
+traces = dashboard("traces", "Chaos Panel · Traces", [
+    recent_orders,
+    tempo_panel(2, "traces", "Trace $traceId", "Every span of one order, from the gateway through Kafka to the courier.", "$traceId", 9, 22),
+], [trace_var])
+traces["description"] = "Order traces from Tempo: pick a recent order or follow the trace link from the shop page."
+traces["refresh"] = ""
+traces["time"] = {"from": "now-1h", "to": "now"}
+
 OUT.mkdir(exist_ok=True)
-for d in (overview, service, kafka):
+for d in (overview, service, kafka, traces):
     (OUT / f"{d['uid']}.json").write_text(json.dumps(d, ensure_ascii=False, indent=1) + "\n")
     print("wrote", d["uid"])
