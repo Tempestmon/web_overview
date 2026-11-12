@@ -59,11 +59,15 @@ export function connectStream(onSnapshot: (s: Snapshot) => void, onStatus: (onli
   return () => es.close();
 }
 
-export async function startFault(node: string, kind: FaultKind): Promise<{ ok: true; id: number } | { ok: false; failure: ApiFailure }> {
+export async function startFault(
+  node: string,
+  kind: FaultKind,
+  ttlS?: number,
+): Promise<{ ok: true; id: number } | { ok: false; failure: ApiFailure }> {
   const r = await fetch('/api/faults', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ node, kind }),
+    body: JSON.stringify({ node, kind, ttl_s: ttlS }),
   });
   const body = await r.json();
   return r.ok ? { ok: true, id: body.id } : { ok: false, failure: body };
