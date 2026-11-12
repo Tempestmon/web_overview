@@ -52,9 +52,12 @@ async fn main() -> anyhow::Result<()> {
     let flow = Arc::new(RwLock::new(Default::default()));
     let (tx, rx) = watch::channel(Arc::new(Snapshot::default()));
 
+    let book = Arc::new(Mutex::new(FaultBook::new(limits)));
+    let force_start_after = Duration::from_secs(config::parse_or("FORCE_START_AFTER_S", 120));
+
     let state = AppState {
         topology: topology.clone(),
-        book: Arc::new(Mutex::new(FaultBook::new(limits))),
+        book: book.clone(),
         docker: docker.clone(),
         observed: observed.clone(),
         flow: flow.clone(),
@@ -65,7 +68,13 @@ async fn main() -> anyhow::Result<()> {
             .build()?,
     };
 
-    tokio::spawn(health::run_monitor(topology.clone(), docker, observed));
+    tokio::spawn(health::run_monitor(
+        topology.clone(),
+        docker,
+        observed,
+        book,
+        force_start_after,
+    ));
     tokio::spawn(flow::run_poller(prom, topology, flow));
     tokio::spawn(api::run_snapshotter(state.clone(), tx));
 
