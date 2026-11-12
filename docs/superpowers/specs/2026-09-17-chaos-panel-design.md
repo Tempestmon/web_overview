@@ -252,7 +252,7 @@ control/chaos-controller
 web/                    Svelte-приложение
 deploy/compose.yaml     база (образы, сети, healthchecks)
 deploy/compose.dev.yaml порты наружу, hot-reload не нужен
-deploy/compose.prod.yaml Caddy c TLS, restart: always, лимиты ресурсов
+deploy/compose.prod.yaml Traefik c TLS (ACME), restart: always
 deploy/prometheus/, deploy/grafana/
 deploy/ansible/         playbook: docker на VPS, деплой compose, .env
 topology.json
@@ -287,8 +287,8 @@ buffers, остальное укладывается в ~2 ГБ суммарно
 | 0. Каркас | workspace, common, proto, Dockerfile, compose с инфрой, Prometheus+Grafana, CI | `make up` поднимает инфру, метрики видны |
 | 1. MVP (узкий вертикальный срез) | gateway ×2 + traefik, order-svc, kitchen-svc, loadgen, chaos-controller со stop/pause/kill-replica, панель и `/order`, авто-heal, smoke-тесты | заказ проходит все стадии; «Сломать kitchen» даёт красный kitchen, жёлтые зависимые, зависший заказ, лаг в Grafana; после TTL всё восстанавливается |
 | 2. Ширина (сделано 2026-09-18) | payment-svc с circuit breaker, courier-svc, ClickHouse+analytics, netem latency/loss, app-error, жёлтый по метрикам, Tempo | каждый тип взаимодействия из цели покрыт хотя бы одним сбоем |
-| 3. Публичность | Caddy+TLS, лимиты, ночной reset, алерты о здоровье стенда, Ansible-деплой на VPS | стенд живёт неделю без ручного вмешательства |
-| 4. Полировка | сценарии-туры («что будет, если…»), частицы по RPS, мобильная вёрстка, README как учебный материал | посетитель без подсказок понимает, что произошло |
+| 3. Публичность (в работе) | TLS на Traefik (ACME, сделано), лимиты, ночной reset, алерты о здоровье стенда, Ansible-деплой на VPS | стенд живёт неделю без ручного вмешательства |
+| 4. Полировка (сделано 2026-11-12) | сценарии-туры («что будет, если…»), частицы по RPS, мобильная вёрстка, README как учебный материал | посетитель без подсказок понимает, что произошло |
 
 ## 12. Риски и решения
 
