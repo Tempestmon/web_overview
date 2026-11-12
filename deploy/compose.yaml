@@ -267,6 +267,8 @@ services:
       SERVICE_ID: loadgen
       BASE_URL: http://traefik:80
       USERS: ${USERS:-10}
+      # Ceiling for a boost: USERS × LOAD_MAX_FACTOR must fit under it.
+      MAX_USERS: ${MAX_USERS:-200}
     depends_on:
       - traefik
     mem_limit: 64m

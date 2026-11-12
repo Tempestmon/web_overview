@@ -3,12 +3,18 @@
 //! shows as "people". Failures are counted, never retried in a tight loop:
 //! a broken stack should look slow and sad, not DoS itself.
 
+mod crowd;
+mod load;
+
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use common::config;
 use rand::Rng;
 use serde::Deserialize;
+
+use crate::crowd::Crowd;
+use crate::load::{Limits, Load};
 
 #[derive(Clone)]
 struct Shop {
@@ -36,7 +42,11 @@ struct Order {
 async fn main() -> anyhow::Result<()> {
     let service_id = config::or_default("SERVICE_ID", "loadgen");
     let metrics = common::init_telemetry(&service_id);
-    let users: usize = config::parse_or("USERS", 10);
+    let limits = Limits {
+        base_users: config::parse_or("USERS", 10),
+        max_users: config::parse_or("MAX_USERS", 200),
+        max_ttl: Duration::from_secs(config::parse_or("MAX_LOAD_TTL_S", 600)),
+    };
     let ops_addr: SocketAddr = config::or_default("OPS_ADDR", "0.0.0.0:8081").parse()?;
     let shop = Shop {
         http: reqwest::Client::builder()
@@ -45,30 +55,51 @@ async fn main() -> anyhow::Result<()> {
         base_url: config::required("BASE_URL"),
     };
 
-    for n in 0..users {
+    let crowd = Crowd::new(Box::new(move |arrival_delay| {
         let shop = shop.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis((n as u64) * 700)).await;
+            tokio::time::sleep(arrival_delay).await;
             user_lifecycle(shop).await;
-        });
-    }
+        })
+    }));
+    let load = Load::start(limits, crowd);
+
     common::serve_ops(
         ops_addr,
         metrics,
         common::always_healthy(),
         common::FaultFlags::new(),
-        axum::Router::new(),
+        load.routes(),
     )
     .await
 }
 
+/// Counts a customer as online for as long as it lives. A drop guard rather
+/// than a decrement after the session: shrinking the crowd aborts the task
+/// mid-session, and the gauge must not keep counting the departed.
+struct Online(metrics::Gauge);
+
+impl Online {
+    fn enter() -> Self {
+        let gauge = metrics::gauge!("loadgen_active_users");
+        gauge.increment(1.0);
+        Self(gauge)
+    }
+}
+
+impl Drop for Online {
+    fn drop(&mut self) {
+        self.0.decrement(1.0);
+    }
+}
+
 async fn user_lifecycle(shop: Shop) {
-    let online = metrics::gauge!("loadgen_active_users");
     loop {
         let session = Duration::from_secs(rand_range(40, 120));
-        online.increment(1.0);
-        let _ = tokio::time::timeout(session, shopping_session(&shop)).await;
-        online.decrement(1.0);
+        {
+            let _online = Online::enter();
+            let _ = tokio::time::timeout(session, shopping_session(&shop)).await;
+        }
         tokio::time::sleep(Duration::from_secs(rand_range(5, 30))).await;
     }
 }
