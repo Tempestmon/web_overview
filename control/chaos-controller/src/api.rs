@@ -17,7 +17,8 @@ use crate::docker::ContainerControl;
 use crate::faults::{Fault, FaultBook, Refusal};
 use crate::flow::{SharedFlow, failing_edges};
 use crate::health::SharedObserved;
-use crate::snapshot::{ActiveFault, EdgeSnapshot, NodeSnapshot, Snapshot};
+use crate::load::{LoadControl, LoadStatus};
+use crate::snapshot::{ActiveFault, EdgeSnapshot, LoadSnapshot, NodeSnapshot, Snapshot};
 use crate::state::derive_states;
 use crate::topology::{FaultKind, Topology};
 
@@ -31,6 +32,7 @@ pub struct AppState {
     pub snapshot: watch::Receiver<Arc<Snapshot>>,
     pub admin_token: Option<String>,
     pub http: reqwest::Client,
+    pub load: LoadControl,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -40,6 +42,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/stream", get(stream))
         .route("/api/faults", post(start_fault))
         .route("/api/faults/{id}", delete(stop_fault))
+        .route("/api/load", post(set_load))
         .fallback(static_asset)
         .with_state(state)
 }
@@ -93,6 +96,9 @@ enum ApiError {
     Refused(Refusal),
     NotFound,
     Forbidden,
+    BadLoadFactor { max: usize },
+    LoadBusy { remaining: Duration },
+    LoadgenUnavailable,
 }
 
 impl IntoResponse for ApiError {
@@ -121,6 +127,21 @@ impl IntoResponse for ApiError {
             ),
             ApiError::NotFound => (StatusCode::NOT_FOUND, "no such fault".to_string(), None),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "not your fault".to_string(), None),
+            ApiError::BadLoadFactor { max } => (
+                StatusCode::BAD_REQUEST,
+                format!("factor must be within 1..={max}"),
+                None,
+            ),
+            ApiError::LoadBusy { remaining } => (
+                StatusCode::CONFLICT,
+                "someone else is driving the load".to_string(),
+                Some(remaining.as_secs()),
+            ),
+            ApiError::LoadgenUnavailable => (
+                StatusCode::BAD_GATEWAY,
+                "load generator is unavailable".to_string(),
+                None,
+            ),
         };
         (
             status,
@@ -232,6 +253,42 @@ async fn heal(state: &AppState, id: u64) {
     }
 }
 
+#[derive(Deserialize)]
+struct SetLoadBody {
+    factor: usize,
+}
+
+/// Factor 1 is "back to normal" and is open to everyone: undoing a boost
+/// cannot hurt the stand, so it needs no ownership.
+async fn set_load(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<SetLoadBody>,
+) -> Result<Json<LoadStatus>, ApiError> {
+    let load = &state.load;
+    if body.factor == 0 || body.factor > load.max_factor {
+        return Err(ApiError::BadLoadFactor {
+            max: load.max_factor,
+        });
+    }
+    let owner = client_ip(&headers);
+    {
+        let mut book = load.book.lock().await;
+        if body.factor == 1 {
+            book.release();
+        } else {
+            book.claim(&owner, is_admin(&state, &headers), Instant::now(), load.ttl)
+                .map_err(|remaining| ApiError::LoadBusy { remaining })?;
+        }
+    }
+    let status = load.set_factor(body.factor).await.map_err(|err| {
+        tracing::warn!(%err, "load change failed");
+        ApiError::LoadgenUnavailable
+    })?;
+    tracing::info!(factor = body.factor, users = status.users, %owner, "load changed");
+    Ok(Json(status))
+}
+
 fn client_ip(headers: &HeaderMap) -> String {
     headers
         .get("x-forwarded-for")
@@ -284,6 +341,7 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
     broken.extend(faults.iter().map(|f| f.node.clone()));
     let failing = failing_edges(&flow, &state.topology);
     let states = derive_states(&state.topology, &broken, &observed.recovering, &failing);
+    let load = state.load.status.read().await.clone();
 
     Snapshot {
         ts_ms: SystemTime::now()
@@ -326,6 +384,12 @@ async fn build_snapshot(state: &AppState) -> Snapshot {
         orders_per_min: flow.orders_per_min,
         kafka_lag: flow.kafka_lag,
         lead_time_s: flow.lead_time_s,
+        load: load.map(|l| LoadSnapshot {
+            users: l.users,
+            base_users: l.base_users,
+            max_factor: state.load.max_factor,
+            remaining_s: l.remaining_s,
+        }),
     }
 }
 

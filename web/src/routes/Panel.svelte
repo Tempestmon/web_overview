@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { connectStream, fetchTopology, startFault, stopFault, type ApiFailure, type FaultKind, type Snapshot, type Topology } from '../lib/api';
+  import { connectStream, fetchTopology, setLoad, startFault, stopFault, type ApiFailure, type FaultKind, type Snapshot, type Topology } from '../lib/api';
+  import LoadControl from '../lib/LoadControl.svelte';
   import Scheme from '../lib/Scheme.svelte';
   import Tour from '../lib/Tour.svelte';
   import { advance, availableScenarios, type Scenario } from '../lib/scenarios';
@@ -29,6 +30,11 @@
     if (r.ok) myFaults = new Set([...myFaults, r.id]);
     notice = r.ok ? null : refusal(r.failure);
     return r.ok;
+  }
+
+  async function onSetLoad(factor: number) {
+    const failure = await setLoad(factor);
+    notice = failure ? refusal(failure) : null;
   }
 
   async function onStartTour(scenario: Scenario) {
@@ -62,6 +68,7 @@
   <div class="stat"><span>заказов / мин</span><b class="num">{Math.round(snapshot?.orders_per_min ?? 0)}</b></div>
   <div class="stat"><span>очередь кухни</span><b class="num">{Math.round(snapshot?.kafka_lag ?? 0)}</b></div>
   <div class="stat"><span>время заказа</span><b class="num">{snapshot?.lead_time_s ? Math.round(snapshot.lead_time_s) + ' с' : '—'}</b></div>
+  <LoadControl load={snapshot?.load ?? null} onSet={onSetLoad} />
   <div class="stat"><span>контроллер</span><b>{online ? 'online' : 'offline'}</b></div>
   <nav>
     <a href="/order" onclick={(e) => { e.preventDefault(); navigate('/order'); }}>Заказать еду →</a>

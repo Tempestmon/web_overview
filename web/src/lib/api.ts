@@ -35,6 +35,8 @@ export interface Snapshot {
   orders_per_min: number;
   kafka_lag: number;
   lead_time_s: number;
+  /** Null while the load generator does not answer. */
+  load: { users: number; base_users: number; max_factor: number; remaining_s: number } | null;
 }
 
 export interface ApiFailure {
@@ -71,6 +73,15 @@ export async function startFault(
   });
   const body = await r.json();
   return r.ok ? { ok: true, id: body.id } : { ok: false, failure: body };
+}
+
+export async function setLoad(factor: number): Promise<ApiFailure | null> {
+  const r = await fetch('/api/load', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ factor }),
+  });
+  return r.ok ? null : r.json();
 }
 
 export async function stopFault(id: number): Promise<boolean> {

@@ -4,6 +4,7 @@ mod docker;
 mod faults;
 mod flow;
 mod health;
+mod load;
 mod snapshot;
 mod state;
 mod topology;
@@ -20,6 +21,7 @@ use crate::api::AppState;
 use crate::docker::{BollardControl, ContainerControl};
 use crate::faults::{FaultBook, Limits};
 use crate::flow::PromClient;
+use crate::load::LoadControl;
 use crate::snapshot::Snapshot;
 use crate::topology::Topology;
 
@@ -55,6 +57,16 @@ async fn main() -> anyhow::Result<()> {
     let book = Arc::new(Mutex::new(FaultBook::new(limits)));
     let force_start_after = Duration::from_secs(config::parse_or("FORCE_START_AFTER_S", 120));
 
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()?;
+    let load = LoadControl::new(
+        http.clone(),
+        &config::or_default("LOADGEN_URL", "http://loadgen:8081"),
+        config::parse_or("LOAD_MAX_FACTOR", 10),
+        Duration::from_secs(config::parse_or("LOAD_TTL_S", 120)),
+    );
+
     let state = AppState {
         topology: topology.clone(),
         book: book.clone(),
@@ -63,9 +75,8 @@ async fn main() -> anyhow::Result<()> {
         flow: flow.clone(),
         snapshot: rx,
         admin_token: std::env::var("ADMIN_TOKEN").ok().filter(|t| !t.is_empty()),
-        http: reqwest::Client::builder()
-            .timeout(Duration::from_secs(3))
-            .build()?,
+        http,
+        load: load.clone(),
     };
 
     tokio::spawn(health::run_monitor(
@@ -76,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
         force_start_after,
     ));
     tokio::spawn(flow::run_poller(prom, topology, flow));
+    tokio::spawn(load.run_poller());
     tokio::spawn(api::run_snapshotter(state.clone(), tx));
 
     let addr: SocketAddr = config::or_default("HTTP_ADDR", "0.0.0.0:8080").parse()?;

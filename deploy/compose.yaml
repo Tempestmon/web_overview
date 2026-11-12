@@ -249,6 +249,9 @@ services:
       COOLDOWN_S: ${COOLDOWN_S:-15}
       IP_LIMIT_S: ${IP_LIMIT_S:-120}
       FORCE_START_AFTER_S: ${FORCE_START_AFTER_S:-120}
+      LOADGEN_URL: http://loadgen:8081
+      LOAD_MAX_FACTOR: ${LOAD_MAX_FACTOR:-10}
+      LOAD_TTL_S: ${LOAD_TTL_S:-120}
     volumes:
       - ./topology.json:/topology.json:ro
     depends_on:
