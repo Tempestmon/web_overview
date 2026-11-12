@@ -301,6 +301,7 @@ services:
       - --storage.tsdb.retention.time=2d
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     mem_limit: 384m
 

@@ -1,0 +1,47 @@
+# Alerts about the stand itself, not about the faults visitors inject.
+# Every `for` outlasts the longest fault (FAULT_MAX_TTL_S, 300 s) plus the
+# cooldown, so a visitor breaking things never fires one.
+groups:
+  - name: stand
+    rules:
+      - alert: StandServiceDown
+        expr: up{job="services"} == 0
+        for: 7m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} is down"
+          description: "No fault lasts this long and the watchdog did not bring it back; the stand stays broken until someone restarts it."
+          dashboard_url: "/grafana/d/overview"
+
+      - alert: StandForcedRestart
+        expr: increase(stand_forced_restarts_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.node }} was force-restarted by the watchdog"
+          description: "The node stayed down with no fault on it; repeated restarts mean it cannot recover on its own."
+          dashboard_url: "/grafana/d/overview"
+          absent_alert: StandServiceDown
+
+      - alert: StandNoOrders
+        expr: sum(increase(orders_created_total[5m])) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No orders created on the stand"
+          description: "The load generator or the synchronous order path is stuck; the panel shows a dead scheme."
+          dashboard_url: "/grafana/d/overview?viewPanel=2"
+          absent_alert: StandServiceDown
+
+      - alert: StandNoDeliveries
+        expr: max(analytics_delivered_5m) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No orders delivered on the stand"
+          description: "Orders are accepted but the Kafka pipeline does not finish them; the backlog grows until a restart."
+          dashboard_url: "/grafana/d/overview?viewPanel=14"
+          absent_alert: StandServiceDown
