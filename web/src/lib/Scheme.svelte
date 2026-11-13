@@ -66,6 +66,7 @@
   }
 </script>
 
+<div class="scroll">
 <div class="scheme" style="aspect-ratio:{VIEW_W}/{VIEW_H}">
   <svg viewBox="0 0 {VIEW_W} {VIEW_H}" preserveAspectRatio="none">
     <defs>
@@ -107,9 +108,13 @@
     />
   {/each}
 </div>
+</div>
 
 <style>
-  .scheme { position: relative; width: 100%; max-width: 1400px; margin: 0 auto; }
+  .scroll { overflow-x: auto; }
+  /* Node cards have a fixed width; below this the columns start to overlap,
+     so a narrow screen scrolls the scheme sideways instead of squeezing it. */
+  .scheme { position: relative; width: 100%; min-width: 1180px; max-width: 1400px; margin: 0 auto; }
   svg, canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   canvas { pointer-events: none; }
   .edge { stroke: var(--line); stroke-width: 1.5; }

@@ -33,7 +33,7 @@ smoke: ## integration tests against a running stack (BASE_URL, ADMIN_TOKEN)
 	cargo test -p smoke -- --ignored --test-threads=1 --nocapture
 
 web:
-	cd web && npm ci && npm run check && npm run build
+	cd web && npm ci && npm run check && npm test && npm run build
 
 fmt:
 	cargo fmt --all

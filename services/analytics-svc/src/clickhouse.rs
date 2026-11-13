@@ -6,8 +6,14 @@ use crate::rows::{Row, json_each_row_line};
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS order_events \
     (order_id UUID, status String, ts DateTime64(3)) ENGINE = MergeTree ORDER BY ts";
-const LEAD_TIME_QUERY: &str = "SELECT avg(lead) FROM (SELECT (maxIf(ts, status='delivered') - minIf(ts, status='accepted')) AS lead \
-    FROM order_events WHERE ts > now() - INTERVAL 5 MINUTE GROUP BY order_id HAVING lead > 0) FORMAT TabSeparated";
+// Orders are picked by delivery time, but `accepted` is looked up an hour back:
+// during a fault an order waits far longer than the 5-minute window. The
+// -OrNull forms keep an order with a missing event out of the average; plain
+// minIf would yield the epoch and a lead time of decades.
+const LEAD_TIME_QUERY: &str = "SELECT avg(delivered - accepted) FROM (SELECT \
+    minIfOrNull(ts, status='accepted') AS accepted, maxIfOrNull(ts, status='delivered') AS delivered \
+    FROM order_events WHERE ts > now() - INTERVAL 1 HOUR GROUP BY order_id \
+    HAVING delivered > now() - INTERVAL 5 MINUTE AND delivered > accepted) FORMAT TabSeparated";
 const DELIVERED_QUERY: &str = "SELECT count() FROM order_events WHERE status='delivered' AND ts > now() - INTERVAL 5 MINUTE FORMAT TabSeparated";
 
 /// Thin client over ClickHouse's HTTP interface; a driver crate would add

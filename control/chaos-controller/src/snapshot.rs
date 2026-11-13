@@ -17,6 +17,17 @@ pub struct Snapshot {
     pub kafka_lag: f64,
     /// Average accepted→delivered time over the last 5 minutes, from ClickHouse.
     pub lead_time_s: f64,
+    /// Absent while the load generator does not answer.
+    pub load: Option<LoadSnapshot>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LoadSnapshot {
+    pub users: usize,
+    pub base_users: usize,
+    pub max_factor: usize,
+    /// Seconds until a boost reverts; 0 at normal load.
+    pub remaining_s: f64,
 }
 
 #[derive(Clone, Debug, Serialize)]

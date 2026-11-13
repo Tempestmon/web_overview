@@ -1,0 +1,117 @@
+{
+ "uid": "traces",
+ "title": "Chaos Panel · Traces",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "refresh": "",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timezone": "browser",
+ "tags": [
+  "chaos-panel"
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "traceId",
+    "label": "Trace ID",
+    "type": "textbox",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "table",
+   "title": "Recent orders",
+   "description": "Latest order requests; click a trace ID to open it below.",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{span.path=\"/api/shop/orders\" && span.method=\"POST\"}",
+     "limit": 20,
+     "tableType": "traces"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "traceID"
+      },
+      "properties": [
+       {
+        "id": "links",
+        "value": [
+         {
+          "title": "Open trace",
+          "url": "/grafana/d/traces/traces?var-traceId=${__value.raw}"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "options": {}
+  },
+  {
+   "id": 2,
+   "type": "traces",
+   "title": "Trace $traceId",
+   "description": "Every span of one order, from the gateway through Kafka to the courier.",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 24,
+    "h": 22
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "$traceId"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {}
+  }
+ ],
+ "description": "Order traces from Tempo: pick a recent order or follow the trace link from the shop page."
+}
